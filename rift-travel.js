@@ -165,7 +165,18 @@ const PREV={
   space:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#05060a','#0f141a']); stars(g,w,h,60,'#e3ecf1'); disc(g,'#3b6862',30,52,12); disc(g,'#7da597',27,49,5); }),
   city:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#12262a','#3b6862','#b5622b']); let x=0; while(x<w){ const bw=6+(rnd()*8|0), bh=20+(rnd()*34|0); g.fillStyle='#0f141a'; g.fillRect(x,h-bh,bw,bh);
     for(let wy=h-bh+3;wy<h-2;wy+=4) for(let wx=x+1;wx<x+bw-1;wx+=2) if(rnd()<.4) px(g,'#f0a43c',wx,wy); x+=bw+1; } }),
-  red:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#2c1d16','#8a2f26','#b5622b']); g.fillStyle='#6e3720'; g.fillRect(0,58,w,h); disc(g,'#d9d3bf',36,14,2); })
+  red:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#2c1d16','#8a2f26','#b5622b']); g.fillStyle='#6e3720'; g.fillRect(0,58,w,h); disc(g,'#d9d3bf',36,14,2); }),
+  // crossover egg, a nod to Cronos: a steelworks district of concrete blocks, winter smog, 1980s
+  huta:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#3a4a58','#7f98ad','#9ea198']); g.fillStyle='#0f141a'; g.fillRect(34,22,4,40); g.fillRect(40,30,3,32);
+    for(let i=0;i<7;i++) disc(g,i%2?'#9ea198':'#7f98ad',36+i*1.5,20-i*3,2+i*.6);
+    for(const [x,y,bw] of [[0,46,16],[17,40,14],[30,52,18]]){ g.fillStyle='#1d2630'; g.fillRect(x,y,bw,h-y); for(let wy=y+2;wy<h-6;wy+=3) for(let wx=x+1;wx<x+bw-1;wx+=2) px(g,rnd()<.15?'#f0a43c':'#0f141a',wx,wy); }
+    g.fillStyle='#d9d3bf'; g.fillRect(0,h-5,w,5); }),
+  // crossover egg, a nod to Dead Space: a cracked planet, a ship broken in two, something red still lit aboard
+  ship:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#05060a','#0f141a']); stars(g,w,h,50,'#9ea198'); disc(g,'#6e3720',8,72,22); disc(g,'#2c1d16',12,76,16);
+    g.strokeStyle='#ff2a1a'; g.lineWidth=1; g.beginPath(); g.moveTo(0,58); g.lineTo(10,64); g.lineTo(18,58); g.lineTo(26,66); g.stroke();
+    for(const [x,y,sz] of [[30,50,3],[26,44,2],[36,58,2]]) px(g,'#6e3720',x,y,sz,sz);
+    g.fillStyle='#3a4a58'; g.fillRect(8,24,20,5); g.fillRect(31,19,13,5); g.fillStyle='#1d2630'; g.fillRect(8,28,20,2); g.fillRect(27,22,4,3);
+    for(let x=10;x<27;x+=3) px(g,rnd()<.3?'#f0a43c':'#0f141a',x,26); px(g,'#8a2f26',34,20,4,4); px(g,'#ff2a1a',35,21,2,2); })
 };
 const EXTRA=['sea','ice','sand','space','city','red'];
 
@@ -190,8 +201,9 @@ function shimmer(c,t,amt){ for(const b of c.bits){ const j=Math.sin(t*7+b.ph)*.0
 /* ================= THE FALL ================= */
 const ERAS=[
   {key:'cret',date:'c. 130,000,000 BC',name:'Early Cretaceous',note:'Contains jump scares',edge:0xf0a43c},
-  {key:'med',date:'c. AD 1350',name:'Middle Ages',locked:true,edge:0x7da597},
-  {key:'atom',date:'AD 2030',name:'The last second',locked:true,edge:0xb5622b}
+  {key:'med',date:'c. AD 1350',name:'Middle Ages',locked:true,edge:0x7da597,sealed:'Sealed · this crack will not hold yet'},
+  {key:'atom',date:'AD 2030',name:'The last second',locked:true,edge:0xb5622b,sealed:'Sealed · the blast froze this one shut'},
+  {key:'ship',date:'AD 2508',name:'Adrift',locked:true,secret:true,edge:0xff2a1a,tag:'Something is still aboard',sealed:'Sealed · make us whole'}
 ];
 const T_SLOW=reduce?0:7.2, DEC_T=1.8, V_MAX=24, SPIN=.22;
 let F=null;
@@ -210,21 +222,22 @@ function buildFall(){
   const deb=[]; const dm=[0x6e3720,0x3b6862,0x434b50,0x9ea198].map(c=>new THREE.MeshBasicMaterial({color:c}));
   for(let i=0;i<50;i++){ const s=rr(.05,.3), m=new THREE.Mesh(new THREE.BoxGeometry(s,s*rr(.3,1),s*rr(.4,1.5)),dm[i%4]); sc.add(m); deb.push({m,r:V(rnd(),rnd(),rnd())}); }
   const picks=ERAS.map((e,i)=>{ e.tex=PREV[e.key](); const c=crack({h:3.8,w:1.25,seed:101+i*13,tex:e.tex,edge:e.edge,n:30,dim:e.locked}); c.g.visible=false; sc.add(c.g); return c; });
-  const pL=new THREE.PointLight(0xf0a43c,0,10); sc.add(pL);
-  F={sc,cracks,sb,sg,sp,sm,deb,picks,y:0,v:0,yaw:0,pitch:-1.2,placed:false,yStop:0,yawEnd:0,dec:0,hov:-1,shake:[0,0,0],pick:null,mx:0,my:0};
+  F={huta:PREV.huta(),sc,cracks,sb,sg,sp,sm,deb,picks,y:0,v:0,yaw:0,pitch:-1.2,placed:false,yStop:0,yawEnd:0,dec:0,hov:-1,shake:[0,0,0,0],pick:null,mx:0,my:0};
 }
 function placeAmbient(c,top){ const a=rnd()*6.283, r=rr(2.4,15); c.g.position.set(Math.cos(a)*r,top-rr(4,150),Math.sin(a)*r);
   c.g.rotation.set(rr(-.4,.4),rnd()*6.283,rr(-.5,.5)); c.g.scale.setScalar(rr(.7,1.5)); }
 function placePicks(yStop,yaw){ F.placed=true; F.yStop=yStop; F.yawEnd=yaw;
   const fx=-Math.sin(yaw), fz=-Math.cos(yaw), rx=Math.cos(yaw), rz=-Math.sin(yaw);
-  F.center=V(fx*7.5,yStop,fz*7.5);
-  F.picks.forEach((c,i)=>{ c.g.visible=true; c.g.position.set(F.center.x+rx*(i-1)*3.3,yStop+.1,F.center.z+rz*(i-1)*3.3); c.g.rotation.set(0,yaw,0); c.home=c.g.position.clone(); });
+  const vis=ERAS.map((e,i)=>i).filter(i=>!ERAS[i].secret||S.marked), n=vis.length, gap=n>3?3:3.3, dist=n>3?8.6:7.5;
+  F.center=V(fx*dist,yStop,fz*dist);
+  F.picks.forEach((c,i)=>{ const k=vis.indexOf(i); c.g.visible=k>=0; if(k<0) return; const o=(k-(n-1)/2)*gap;
+    c.g.position.set(F.center.x+rx*o,yStop+.1,F.center.z+rz*o); c.g.rotation.set(0,yaw,0); c.home=c.g.position.clone(); });
   // clear the ambient cracks out of the way of the three
   for(const c of F.cracks) if(c.g.position.distanceTo(F.center)<7 || Math.abs(c.g.position.y-yStop)<3&&Math.hypot(c.g.position.x,c.g.position.z)<3) placeAmbient(c,yStop-12);
 }
 let pickEls=[];
 function buildPickUI(){ pickEls=ERAS.map((e,i)=>{ const b=el('button',null,'tpick'+(e.locked?' locked':'')); b.type='button'; b.hidden=true;
-  b.innerHTML=`<span>${e.date}<small>${e.name}</small>${e.locked?'<em>Sealed</em>':`<em>${e.note}</em>`}</span>`;
+  b.innerHTML=`<span>${e.date}<small>${e.name}</small><em>${e.locked?(e.tag||'Sealed'):e.note}</em></span>`;
   b.setAttribute('aria-label',`${e.date}, ${e.name}${e.locked?', sealed':''}`);
   b.addEventListener('click',()=>choose(i)); b.addEventListener('mouseenter',()=>{ F.hov=i; }); b.addEventListener('mouseleave',()=>{ if(F.hov===i) F.hov=-1; });
   b.addEventListener('focus',()=>{ F.hov=i; }); b.addEventListener('blur',()=>{ if(F.hov===i) F.hov=-1; }); return b; }); }
@@ -232,7 +245,10 @@ addEventListener('mousemove',e=>{ if(F){ F.mx=(e.clientX/innerWidth)*2-1; F.my=(
 
 function startFall(){ if(!F) buildFall(); if(!pickEls.length) buildPickUI();
   F.y=0; F.v=0; F.yaw=rnd()*6.283; F.pitch=-1.2; F.placed=false; F.pick=null;
-  for(const c of F.cracks) placeAmbient(c,-2); for(const c of F.picks) c.g.visible=false;
+  S.marked=!!(R.marked&&R.marked());
+  // marked by the crossover egg: some cracks bleed red, some open on Nowa Huta
+  F.cracks.forEach((c,i)=>{ placeAmbient(c,-2); c.em.color.setHex(S.marked&&i%4===0?0xff2a1a:c.o.edge); if(c.o.tex) c.wm.map=S.marked&&i%5===0?F.huta:c.o.tex; });
+  for(const c of F.picks) c.g.visible=false;
   for(const b of F.sb){ b.y=-rr(0,160); }
   for(const d of F.deb){ const a=rnd()*6.283, r=rr(.8,10); d.m.position.set(Math.cos(a)*r,-rr(2,150),Math.sin(a)*r); }
   F.sc.add(cam); setPal(PAL_VOID); S.mode='fall'; S.t=0;
@@ -240,17 +256,17 @@ function startFall(){ if(!F) buildFall(); if(!pickEls.length) buildPickUI();
   if(reduce){ toChoose(); return; }
   skipEl.hidden=false; fallAudio(.9,0); snd.whoosh();
   after(.9,()=>{ if(S.mode==='fall') caption('You fall through the rift.'); });
-  after(3.1,()=>{ if(S.mode==='fall') caption('Not one crack in time. Thousands.'); });
-  after(5.3,()=>{ if(S.mode==='fall') caption('Each one opens on a different when.'); });
+  after(3.1,()=>{ if(S.mode==='fall') caption(S.marked?'Something else fell with you.':'Not one crack in time. Thousands.'); });
+  after(5.3,()=>{ if(S.mode==='fall') caption(S.marked?'Every crack is a when. Some are a what.':'Each one opens on a different when.'); });
 }
 function skip(){ if(S.mode==='fall') toChoose(); }
 function toChoose(){ if(!F.placed) placePicks(F.y-6,F.yaw);
   F.y=F.yStop; F.yaw=F.yawEnd; F.v=0; F.pitch=0; S.mode='choose'; S.t=0; skipEl.hidden=true; caption('Choose a when.');
   if(S.fade<.5){ fadeTo(.6,0,'#fff3d0'); S.fade=.6; fadeTo(0,.6); }
   S.glitch=Math.max(S.glitch,.6); fallAudio(.35,0); R.unlock();
-  pickEls.forEach(b=>{ b.hidden=false; }); setTimeout(()=>{ if(S.mode==='choose'&&!R.touch()) pickEls[0].focus({preventScroll:true}); },400); }
-function choose(i){ if(S.mode!=='choose') return; const e=ERAS[i];
-  if(e.locked){ F.shake[i]=.5; snd.crackle(); S.glitch=Math.max(S.glitch,.35); msg(i===1?'Sealed · this crack will not hold yet':'Sealed · the blast froze this one shut'); return; }
+  pickEls.forEach((b,i)=>{ b.hidden=!F.picks[i].g.visible; }); setTimeout(()=>{ if(S.mode==='choose'&&!R.touch()) pickEls[0].focus({preventScroll:true}); },400); }
+function choose(i){ if(S.mode!=='choose'||!F.picks[i]||!F.picks[i].g.visible) return; const e=ERAS[i];
+  if(e.locked){ F.shake[i]=.5; snd.crackle(); S.glitch=Math.max(S.glitch,e.secret?.9:.35); if(e.secret&&R.sfx.whisper) R.sfx.whisper(); msg(e.sealed); return; }
   S.mode='go'; S.t=0; F.pick=i; pickEls.forEach(b=>{ b.hidden=true; b.blur(); }); caption(''); snd.whoosh(); fallAudio(.8,1);
   after(.75,()=>fadeTo(1,.6,'#000')); after(1.5,arrive); }
 function fallFrame(dt){ const t=S.t;
@@ -276,13 +292,14 @@ function fallFrame(dt){ const t=S.t;
   F.sg.attributes.position.needsUpdate=true; F.sm.opacity=.06+sp*.5;
   for(const d of F.deb){ if(d.m.position.y>F.y+5) d.m.position.y=F.y-rr(40,150); d.m.rotation.x+=dt*d.r.x; d.m.rotation.y+=dt*d.r.y; }
   // the three
-  if(F.placed) F.picks.forEach((c,i)=>{ const e=ERAS[i], hov=F.hov===i&&S.mode==='choose';
+  if(F.placed) F.picks.forEach((c,i)=>{ if(!c.g.visible) return; const e=ERAS[i], hov=F.hov===i&&S.mode==='choose';
     shimmer(c,S.T+i,e.locked?.5:1.2);
-    if(e.locked){ c.wm.color.setHex(Math.random()<.06?0x333333:(hov?0x999999:0x777777)); c.em.opacity=Math.random()<.08?.15:.4; }
+    if(e.secret){ c.em.opacity=.25+Math.pow(Math.max(0,Math.sin(S.T*2.4)),8)*.75; c.wm.color.setHex(hov?0xbbbbbb:0x888888); } // a slow red heartbeat
+    else if(e.locked){ c.wm.color.setHex(Math.random()<.06?0x333333:(hov?0x999999:0x777777)); c.em.opacity=Math.random()<.08?.15:.4; }
     else { c.em.opacity=.75+Math.sin(S.T*3)*.15+(hov?.1:0); }
     const s=hov?1.06:1; c.g.scale.set(s,s,s); F.shake[i]=Math.max(0,F.shake[i]-dt);
     c.g.position.copy(c.home); c.g.position.y+=Math.sin(S.T*.8+i*2)*.06; if(F.shake[i]>0) c.g.position.x+=(Math.random()-.5)*F.shake[i]*.3; });
-  if(S.mode==='choose'){ cam.updateMatrixWorld(); F.picks.forEach((c,i)=>{ const b=pickEls[i], h=c.o.h/2;
+  if(S.mode==='choose'){ cam.updateMatrixWorld(); F.picks.forEach((c,i)=>{ const b=pickEls[i], h=c.o.h/2; if(b.hidden) return;
     tv.copy(c.home).add(tv2.set(0,h,0)).project(cam); const top=(-tv.y*.5+.5)*innerHeight; tv.copy(c.home).add(tv2.set(0,-h,0)).project(cam);
     const bot=(-tv.y*.5+.5)*innerHeight, x=(tv.x*.5+.5)*innerWidth;
     b.style.transform=`translate(${x|0}px,${top|0}px) translateX(-50%)`; b.style.height=Math.max(60,bot-top+46|0)+'px'; b.style.width=Math.max(120,(bot-top)*.45|0)+'px'; }); }
@@ -660,7 +677,7 @@ function leave(){ if(!S.active||S.leaving) return; S.leaving=true; skipEl.hidden
     fadeEl.style.transition='none'; fadeEl.style.opacity=1; requestAnimationFrame(()=>{ fadeEl.style.transition='opacity 1s steps(8)'; fadeEl.style.opacity=0; setTimeout(()=>{ fadeEl.style.transition='none'; },1100); }); }); }
 function key(k){
   if(S.mode==='fall'&&(k===' '||k==='enter'||k==='escape')) skip();
-  else if(S.mode==='choose'){ if(k==='1'||k==='2'||k==='3') choose(+k-1); else if(k==='escape') leave(); }
+  else if(S.mode==='choose'){ if(k>='1'&&k<='4') choose(+k-1); else if(k==='escape') leave(); }
   else if(S.mode==='cret'){ if(k===' ') jump(); else if(k==='f'){ if(D.flashDead) msg('The flashlight is dying'); else { D.flashOn=!D.flashOn; R.sfx.ui(); } } else if(k==='t') msg('Time will not shift here'); else if(k>='1'&&k<='5') msg('Your records stayed in 1986'); }
 }
 function jump(){ if(S.mode!=='cret'||TP.jy>0||TP.vy>0) return; TP.vy=4.4; TP.jy=.001; }
