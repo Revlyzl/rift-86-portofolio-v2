@@ -420,9 +420,10 @@ const sfx={
   glimpse(){ if(!ac) return; const t=ac.currentTime; noise(t,.4,'bandpass',2600,4,.12,.3); tone(t,'square',220,180,.03,.01,.3); },
   ui(){ if(!ac) return; const t=ac.currentTime; tone(t,'square',660,990,.05,.004,.06); }
 };
-function setBeds(){ if(!ac) return; const t=ac.currentTime; const past=era==='past';
-  bedF.gain.setTargetAtTime(past?0:.3,t,.4); bedP.gain.setTargetAtTime(past?1:0,t,.4);
-  if(musicG){ musicG.gain.setTargetAtTime(past?.24:.62,t,.5); musicLP.frequency.setTargetAtTime(past?650:20000,t,.3); } }
+let travelling=false; // true while rift-travel.js owns the screen; the corridor goes quiet
+function setBeds(){ if(!ac) return; const t=ac.currentTime; const past=era==='past', away=travelling;
+  bedF.gain.setTargetAtTime(past||away?0:.3,t,.4); bedP.gain.setTargetAtTime(past&&!away?1:0,t,.4);
+  if(musicG){ musicG.gain.setTargetAtTime(away?0:(past?.24:.62),t,.5); musicLP.frequency.setTargetAtTime(past?650:20000,t,.3); } }
 
 /* ================= 3D ================= */
 let ok3d=!!window.THREE;
@@ -660,7 +661,7 @@ for(let i=0;i<22;i++){ const y=.25+i*.115, x=Math.sin(i*.9)*.18+Math.sin(i*2.3)*
 const riftHit=box(.9,2.7,.3,0,1.4,0,new THREE.MeshBasicMaterial({visible:false}),{parent:rift});
 riftHit.userData.key='rift'; INTER.push(riftHit);
 const riftL=new THREE.PointLight(0xf0a43c,1.4,9,2); riftL.position.set(0,1.5,RZ+.4); scene.add(riftL);
-SPOTS.push({key:'rift',name:'Rift',sub:'Shift time · T',pos:new THREE.Vector3(0,2.95,RZ),kind:'rift',range:14});
+SPOTS.push({key:'rift',name:'Rift',sub:'Step through',pos:new THREE.Vector3(0,2.95,RZ),kind:'rift',range:14});
 
 /* ---------- rooms ---------- */
 function room(side,za,zb,wp,doorZ){ const xi=side*2, xo=side*9, x0=Math.min(xi,xo), x1=Math.max(xi,xo);
@@ -796,7 +797,7 @@ var dustM=new THREE.PointsMaterial({color:0xb8b2a0,size:.01,transparent:true,opa
 var dust=new THREE.Points(dg,dustM); scene.add(dust);
 
 /* ---------- export for the loop ---------- */
-window.__W={LAMPS,R,riftBits,riftOuter,riftCore,riftL,tvX,tvT,tvS,hemi,winL,flash,dustM,dust,dbase,dpos,dg,tvLight};
+window.__W={RZ,LAMPS,R,riftBits,riftOuter,riftCore,riftL,tvX,tvT,tvS,hemi,winL,flash,dustM,dust,dbase,dpos,dg,tvLight};
 }
 
 /* ================= POST: low-res, palette, dither, scanlines ================= */
@@ -854,8 +855,8 @@ function applyEra(e){
   W.dustM.opacity=past?.35:.55;
   W.tvLight.color.setHex(past?0xb5622b:0x7da597);
 }
-function setEra(e,quiet){ era=e; applyEra(e); setBeds(); $('#year').classList.toggle('past',e==='past'); $('#yearVal').textContent=e==='past'?'1986':'20??'; if(typeof updateAim==='function'&&started) updateAim();
-  $('#shiftBtn').textContent=e==='past'?'Return to now':'Shift to 1986';
+function eraHud(){ $('#year').classList.toggle('past',era==='past'); $('#yearVal').textContent=era==='past'?'1986':'20??'; $('#shiftBtn').textContent=era==='past'?'Return to now':'Shift to 1986'; }
+function setEra(e,quiet){ era=e; applyEra(e); setBeds(); eraHud(); if(typeof updateAim==='function'&&started) updateAim();
   if(!quiet){ glitch=1; sfx.shift(); const s=$('#shift'); s.style.transition='none'; s.style.opacity=reduce?.15:.5; requestAnimationFrame(()=>{ s.style.transition='opacity .6s steps(5)'; s.style.opacity=0; }); } }
 let glitch=0, glimpseT=0, nextGlimpse=18+Math.random()*14;
 function toggleEra(){ setEra(era==='past'?'future':'past'); }
@@ -867,6 +868,7 @@ const keys={};
 function blocked(x,z){ const r=.28; for(const c of COLS){ if(c.t==='F'&&era==='past') continue; if(c.t==='P'&&era!=='past') continue;
   if(x>c.x0-r&&x<c.x1+r&&z>c.z0-r&&z<c.z1+r) return true; } return false; }
 addEventListener('keydown',e=>{ if(e.target.closest&&e.target.closest('input,textarea')) return; const k=e.key.toLowerCase(); keys[k]=true;
+  if(inTravel()){ if(!e.repeat) travel.key(k,e); if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault(); return; }
   if(k==='escape'){ if(!$('#lb').hidden) closeLb(); else closePanel(); }
   if(started && !e.repeat){ if(k==='t'){ toggleEra(); } if(k==='f'){ flashOn=!flashOn; applyEra(era); sfx.ui(); } if(['1','2','3','4','5'].includes(k)) openPanel(['about','experience','skills','projects','contact'][+k-1]); if(k==='e'&&aimKey&&!panelOpen) act(aimKey); }
   if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault(); });
@@ -882,14 +884,14 @@ document.addEventListener('mousemove',e=>{
   if(locked){ P.yaw-=e.movementX*.0022; P.pitch=Math.max(-1.2,Math.min(1.2,P.pitch-e.movementY*.0022)); return; }
   if(e.target===canvas){ mx=(e.clientX/innerWidth)*2-1; my=(e.clientY/innerHeight)*2-1; mIn=true; } else mIn=false; });
 document.addEventListener('mouseleave',()=>{ mIn=false; });
-canvas.addEventListener('click',e=>{ if(coarse||!started) return; if(panelOpen){ closePanel(); return; } if(!locked&&!lockFailed){ lock(); return; } if(aimKey) act(aimKey); });
+canvas.addEventListener('click',e=>{ if(coarse||!started) return; if(inTravel()){ travel.click(); return; } if(panelOpen){ closePanel(); return; } if(!locked&&!lockFailed){ lock(); return; } if(aimKey) act(aimKey); });
 
 // touch: left zone = floating stick, anywhere else = drag to look (camera follows the finger), quick tap = inspect
 let tId=null,tx0=0,ty0=0,tlx=0,tly=0,tT=0;
 const stick=$('#stick'), knob=stick.querySelector('i'), SR=55; let sId=null, sx=0, sy=0, sbx=0, sby=0, sx0=0, sy0=0, sT=0;
 const inStickZone=t=>t.clientX<innerWidth*.42 && t.clientY>innerHeight*.35;
 function useTouchUI(){ if(touchUI) return; touchUI=true; document.body.classList.add('touch'); $('#ctl').textContent=TOUCH_CTL; updateAim(); }
-function tap(x,y){ if(panelOpen){ closePanel(); return; } const k=aimKey||pick((x/innerWidth)*2-1,(y/innerHeight)*2-1); if(k) act(k); }
+function tap(x,y){ if(inTravel()) return; if(panelOpen){ closePanel(); return; } const k=aimKey||pick((x/innerWidth)*2-1,(y/innerHeight)*2-1); if(k) act(k); }
 function isTap(x,y,x0,y0,t0){ return Math.hypot(x-x0,y-y0)<10 && performance.now()-t0<350; }
 canvas.addEventListener('touchstart',e=>{ useTouchUI();
   for(const t of e.changedTouches){
@@ -922,7 +924,20 @@ function pick(nx,ny){ if(!ok3d||!started||panelOpen) return null; v2.set(nx,-ny)
   const vis=INTER.filter(o=>visibleDeep(o)); const hits=ray.intersectObjects(vis.concat(OCC),false);
   if(hits.length && hits[0].object.userData.key) return hits[0].object.userData.key; return null; }
 function visibleDeep(o){ while(o){ if(!o.visible) return false; o=o.parent; } return true; }
-function act(k){ if(k==='rift') toggleEra(); else openPanel(k); }
+function act(k){ if(k==='rift') enterRift(); else openPanel(k); }
+
+/* ================= RIFT TRAVEL =================
+   The fall through time, the choice of era and the eras themselves live in rift-travel.js, fetched on the first step
+   through so the portfolio itself stays light. T and the Shift button still swap 1986 / 20?? without it. */
+let travel=null, travelLoading=false;
+const inTravel=()=>!!(travel&&travel.active);
+function enterRift(){ if(!ok3d||inTravel()||travelLoading) return; if(!started) start();
+  glitch=1; sfx.shift(); const s=$('#shift'); s.style.transition='none'; s.style.opacity=reduce?.2:.7; requestAnimationFrame(()=>{ s.style.transition='opacity .8s steps(6)'; s.style.opacity=0; });
+  if(travel){ travel.begin(); return; }
+  travelLoading=true; const sc=document.createElement('script'); sc.src='rift-travel.js';
+  sc.onload=()=>{ travelLoading=false; travel=window.RiftTravel||null; if(travel) travel.begin(); else toggleEra(); };
+  sc.onerror=()=>{ travelLoading=false; toggleEra(); }; // offline or blocked: the rift falls back to a plain era shift
+  document.head.appendChild(sc); }
 
 /* ================= LABELS ================= */
 const labels=$('#labels');
@@ -936,7 +951,7 @@ const TITLES={about:'Apt 12 · Resident card',experience:'Lobby · Work log',ski
 const AIMN={about:['Resident card','About me'],experience:['Notice board','Work log'],skills:['Workshop wall','Skills'],projects:['TV + tapes','Projects'],contact:['Phone + radio','Contact']};
 function updateAim(){ const el=$('#aim'); const xh=$('#xhair'); const act2=touchUI?'Tap to':'Click or E to';
   if(!started||panelOpen){ el.hidden=true; xh.classList.remove('on'); return; }
-  if(aimKey){ const n=aimKey==='rift'?['Rift',era==='past'?'return to now':'shift to 1986']:AIMN[aimKey];
+  if(aimKey){ const n=aimKey==='rift'?['Rift','step through']:AIMN[aimKey];
     el.className='aim'; el.innerHTML=`${n[0]}<small>${act2} ${aimKey==='rift'?n[1]:'inspect · '+n[1]}</small>`; el.hidden=false; xh.classList.add('on'); }
   else if(!touchUI&&!locked&&!lockFailed){ el.className='aim idle'; el.innerHTML='Click to look around<small>Esc frees the cursor</small>'; el.hidden=false; xh.classList.remove('on'); }
   else { el.hidden=true; xh.classList.remove('on'); } }
@@ -949,7 +964,7 @@ document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',(
 $('#copy').addEventListener('click',()=>{ const btn=$('#copy'), txt=$('#addr').textContent; const done=()=>{btn.textContent='Copied';setTimeout(()=>btn.textContent='Copy email',1600);};
   const fb=()=>{ const r=document.createRange(); r.selectNodeContents($('#addr')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent='Selected · copy it'; setTimeout(()=>btn.textContent='Copy email',2000); };
   try{ navigator.clipboard.writeText(txt).then(done,fb); }catch(e){ fb(); } });
-$('#shiftBtn').addEventListener('click',()=>{ if(!started) start(); toggleEra(); });
+$('#shiftBtn').addEventListener('click',()=>{ if(!started) start(); if(inTravel()){ travel.leave(); return; } toggleEra(); });
 $('#sound').addEventListener('click',()=>{ soundOn=!soundOn; $('#sound').setAttribute('aria-pressed',String(soundOn)); $('#sound').textContent=soundOn?'Sound':'Muted';
   if(!ac) initAudio(); if(ac){ if(ac.state==='suspended') ac.resume(); master.gain.setTargetAtTime(soundOn?1:0,ac.currentTime,.05); } });
 
@@ -1053,6 +1068,7 @@ function loop(now){
   if(sId!==null){ f+=-sy; s+=sx; }
   const m=Math.hypot(f,s); let moving=false;
   const run=keys['shift']||(sId!==null&&Math.hypot(sx,sy)>RUN_AT);
+  if(inTravel()){ travel.frame(dt,{f,s,m,run}); return; }
   if(started && m>.05 && !panelOpen){ const sp=(run?3.8:2.2)*Math.min(1,m)/Math.max(1,m); const yaw=P.yaw;
     const vx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)*sp*dt, vz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)*sp*dt;
     if(!blocked(P.x+vx,P.z)) P.x+=vx; if(!blocked(P.x,P.z+vz)) P.z+=vz; moving=true;
@@ -1110,6 +1126,16 @@ function loop(now){
 }
 let hovKey=null, aimKey=null;
 if(ok3d) resize();
+
+// what rift-travel.js gets to touch: the shared renderer + post pass, the player's look/keys, audio, and a way home
+window.__R86={renderer,rt,postMat,postScene,postCam,P,keys,reduce,PAL,sfx,
+  audio:()=>ac?{ac,master,nb,noise,tone}:null,
+  touch:()=>touchUI, locked:()=>locked, lock,
+  unlock(){ if(locked){ try{ document.exitPointerLock(); }catch(e){} } },
+  setTravelling(on){ travelling=on; setBeds(); if(on){ aimKey=null; for(const s of SPOTS){ s.vis=false; s.el.classList.remove('on'); } } },
+  // back out of the rift, standing just in front of it and facing down the hall
+  home(){ P.x=0; P.z=window.__W.RZ+2.4; P.yaw=Math.PI; P.pitch=0; P.bob=0; eraHud(); applyEra(era); glitch=1; sfx.shift(); updateAim(); }
+};
 requestAnimationFrame(loop);
 })();
 </script>
