@@ -99,7 +99,9 @@ const snd={
   growl(pan,v){ const a=A(); if(!a) return; const d=pout(pan,v), t=a.ac.currentTime; a.tone(t,'sawtooth',78,58,.16,.2,1.1,d); a.tone(t,'square',39,30,.08,.2,1.1,d); swell(t,1.3,'lowpass',260,.3,d); },
   screech(){ const a=A(); if(!a) return; const d=pout(0,1), t=a.ac.currentTime; a.noise(t,1.1,'highpass',1300,.7,.9,.9,d);
     a.tone(t,'sawtooth',1500,360,.4,.01,.85,d); a.tone(t,'square',2700,800,.2,.01,.6,d); a.tone(t+.02,'sawtooth',1110,300,.25,.01,.8,d); a.tone(t,'sine',95,38,.7,.01,1,d); },
-  heart(v){ const a=A(); if(!a) return; const t=a.ac.currentTime; a.tone(t,'sine',62,40,.5*v,.004,.16); a.tone(t+.18,'sine',55,36,.36*v,.004,.2); },
+  // lub-dub: a deep sine for the body, a triangle and a muffled knock so it still reads on small speakers
+  heart(v){ const a=A(); if(!a) return; const t=a.ac.currentTime;
+    for(const [o,k] of [[0,1],[.2,.72]]){ a.tone(t+o,'sine',64,38,.55*v*k,.004,.18); a.tone(t+o,'triangle',130,70,.22*v*k,.003,.1); a.noise(t+o,.12,'lowpass',220,.8,.3*v*k,.08); } },
   step(){ const a=A(); if(!a) return; const t=a.ac.currentTime, v=.8+Math.random()*.3; a.tone(t,'sine',85,44,.2*v,.004,.12); a.noise(t,.18,'lowpass',520,.9,.2*v,.1);
     a.noise(t+.03,.2,'bandpass',2200+Math.random()*900,1.4,.07*v,.14); }, // leaf litter
   chime(){ const a=A(); if(!a) return; const t=a.ac.currentTime; [880,1320,1760,2640].forEach((f,i)=>a.tone(t+i*.07,'triangle',f,f,.08,.005,.9)); a.noise(t,.8,'bandpass',5000,3,.05,.7); },
@@ -453,6 +455,7 @@ function buildCret(){ seed=1986130;
   for(let i=0;i<24;i++){ const a=rnd()*6.283, d=rr(8,28); const x=Math.cos(a)*d, z=Math.sin(a)*d; if(Math.hypot(x-POND.x,z-POND.z)>POND.r+1.5) VP.push({x,z}); }
   C={sc,flash,rift,riftL,shards,moonRef,mp,mb,mg,shaftL,hemi,moonL,shaft,moon,halo,skyM,starM,motes};
   RAP.length=0; for(let i=0;i<3;i++){ const r=makeRaptor(i); sc.add(r.root); RAP.push(r); }
+  makeEyes(sc);
 }
 
 /* ================= UTAHRAPTOR =================
@@ -463,7 +466,13 @@ const rapM=new THREE.MeshPhongMaterial({color:0x1b1d18,specular:0x101010,shinine
 const featM=new THREE.MeshPhongMaterial({color:0x141612,flatShading:true,side:THREE.DoubleSide});
 const clawM=new THREE.MeshPhongMaterial({color:0x5a4c3a,flatShading:true,shininess:20});
 const toothM=new THREE.MeshPhongMaterial({color:0x8a8a7a,flatShading:true});
-const eyeM=new THREE.MeshBasicMaterial({color:0xff2a1a,fog:false});
+// the eyes: a glowing almond with a cat's slit, billboarded so they always stare straight at you
+const eyeTex=tex(48,24,(g,w,h)=>{
+  const almond=(rx,ry)=>{ g.beginPath(); g.moveTo(w/2-rx,h/2); g.quadraticCurveTo(w/2,h/2-ry*2,w/2+rx,h/2); g.quadraticCurveTo(w/2,h/2+ry*2,w/2-rx,h/2); g.closePath(); };
+  g.shadowColor='#9e130b'; g.shadowBlur=6; almond(17,6); g.fillStyle='#9e130b'; g.fill(); g.shadowBlur=0;
+  almond(15,5); g.fillStyle='#ff2a1a'; g.fill();
+  g.fillStyle='#04060a'; g.beginPath(); g.ellipse(w/2,h/2,1.6,4.6,0,0,7); g.fill(); });
+eyeTex.minFilter=THREE.LinearFilter;
 // box tapered along z: scale `back` at -z end, `front` at +z end, then shifted by zo
 function tbox(w,h,d,back,front,zo){ const g=new THREE.BoxGeometry(w,h,d,1,1,2), p=g.attributes.position;
   for(let i=0;i<p.count;i++){ const k=p.getZ(i)/d+.5, s=lerp(back,front,k); p.setX(i,p.getX(i)*s); p.setY(i,p.getY(i)*s); }
@@ -483,10 +492,8 @@ function makeRaptor(i){
   part(new THREE.BoxGeometry(.2,.025,.5),toothM,head,0,-.17,.4);
   const jaw=grp(head,0,-.12,.0); part(tbox(.24,.09,.66,1,.5,.32),rapM,jaw,0,-.03,0); part(new THREE.BoxGeometry(.16,.025,.45),toothM,jaw,0,.02,.36);
   for(let k=0;k<3;k++) part(new THREE.PlaneGeometry(.22,.3),featM,head,0,.2,-.05-k*.06,-.9-k*.25);
-  const eyes=grp(head,0,0,0); for(const s of [-1,1]) part(new THREE.BoxGeometry(.05,.035,.05),eyeM,eyes,s*.14,.07,.22);
-  const eg=new THREE.BufferGeometry(); eg.setAttribute('position',new THREE.Float32BufferAttribute([-.15,.07,.22,.15,.07,.22],3));
-  const eyeP=new THREE.PointsMaterial({color:0xff2a1a,size:2,sizeAttenuation:false,fog:false,depthWrite:false});
-  const ep=new THREE.Points(eg,eyeP); ep.renderOrder=2; eyes.add(ep);
+  const eyes=grp(head,0,.07,.3), eyeMat=new THREE.SpriteMaterial({map:eyeTex,transparent:true,depthWrite:false,fog:false});
+  const eyeS=[-1,1].map(s=>{ const e=new THREE.Sprite(eyeMat); e.position.x=s*.17; e.renderOrder=2; eyes.add(e); return e; });
   // tail: a stiff chain, feathered toward the tip
   const tail=[]; let par=body;
   for(let k=0;k<8;k++){ const w=.54*(1-k/8.6); const g=grp(par,0,k?0:.12,k?-.5:-.48,-.02); part(tbox(w,w*1.05,.54,.8,1,-.26),rapM,g,0,0,0);
@@ -501,35 +508,67 @@ function makeRaptor(i){
   for(const s of [-1,1]){ const up=grp(body,s*.36,-.05,1.25,.9,0,s*.25); part(hang(.1,.44,.12),rapM,up,0,0,0);
     const fo=grp(up,0,-.42,0,-1.7); part(hang(.08,.4,.09),rapM,fo,0,0,0); part(new THREE.PlaneGeometry(.12,.55),featM,fo,0,-.3,-.1,.2);
     for(let k=0;k<3;k++) part(new THREE.BoxGeometry(.02,.12,.03),clawM,fo,(k-1)*.025,-.44,.03,.4); }
-  const parts=[]; root.traverse(o=>{ if(o.isMesh&&o.parent!==eyes) parts.push(o); });
+  const parts=[]; root.traverse(o=>{ if(o.isMesh) parts.push(o); });
   root.visible=false;
-  return {i,root,parts,hideT:0,hip,body,neck,head,jaw,eyes,eyeP,tail,legs,qRest,qCur:qRest.clone(),
-    x:0,z:0,h:0,tx:0,tz:0,st:'off',tm:4+i*7,mv:0,mvS:0,ph:rnd()*6,crouch:0,jawT:0,tilt:0,tiltT:1,blink:3+rnd()*4,litT:0,seen:false,d:99,sndT:0,lookW:1};
+  return {i,root,parts,hideT:0,hip,body,neck,head,jaw,eyes,eyeS,eyeMat,tail,legs,qRest,qCur:qRest.clone(),
+    x:0,z:0,h:0,tx:0,tz:0,st:'off',tm:4+i*7,mv:0,mvS:0,ph:rnd()*6,crouch:0,jawT:0,tilt:0,tiltT:1,blink:3+rnd()*4,lid:0,litT:0,seen:false,d:99,sndT:0,lookW:1};
 }
+
+/* ================= THE EYES =================
+   Before the dark nothing out there has a body: only single eyes, scattered far from the rift, that watch you and blink.
+   Come close or put the light on one and it shuts and is gone, to open again somewhere else. */
+const EYES=[], EF=V(0,0,0), ET=V(0,0,0);
+function makeEyes(sc){ EYES.length=0;
+  for(let i=0;i<16;i++){ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:eyeTex,transparent:true,depthWrite:false,fog:false,rotation:rr(-.3,.3)}));
+    s.renderOrder=2; s.visible=false; sc.add(s); EYES.push({s,x:0,y:0,z:0,lid:0,blink:rr(1,5),hideT:0,shut:false,litT:0}); } }
+function eyeSpot(hidden){ const minD=D.shards>=3?20:13;
+  for(let i=0;i<60;i++){ const a=rnd()*6.283, d=Math.sqrt(rr(36,28.5*28.5)), x=Math.cos(a)*d, z=Math.sin(a)*d;
+    if(Math.hypot(x-RIFTP.x,z-RIFTP.z)<16||Math.hypot(x-TP.x,z-TP.z)<minD||Math.hypot(x-POND.x,z-POND.z)<POND.r+.5) continue;
+    if(CIRC.some(c=>Math.hypot(x-c.x,z-c.z)<c.r+.2)) continue;
+    const y=gh(x,z)+rr(.4,2.6); if(hidden&&onScreen(x,y,z,1)) continue; return {x,y,z}; }
+  return null; }
+function placeEye(e){ const p=eyeSpot(true)||eyeSpot(false); if(!p){ e.hideT=.5; return; }
+  e.x=p.x; e.y=p.y; e.z=p.z; e.s.position.set(p.x,p.y,p.z); e.lid=0; e.shut=false; e.litT=0; }
+function resetEyes(){ for(const e of EYES){ e.s.visible=false; e.lid=0; e.shut=false; e.hideT=rr(0,6); } }
+function eyesFrame(dt){ EF.set(0,0,-1).applyQuaternion(cam.quaternion); const beam=D.flashOn&&(D.flashDead?D.sput>0:D.flick<=0);
+  for(const e of EYES){
+    if(e.hideT>0){ e.hideT-=dt; e.s.visible=false; if(e.hideT<=0) placeEye(e); continue; }
+    const d=Math.hypot(e.x-TP.x,e.z-TP.z); ET.set(e.x,e.y,e.z).sub(cam.position).normalize();
+    e.litT=beam&&d<14&&EF.dot(ET)>.93?e.litT+dt:0;
+    if(d<9||e.litT>.25) e.shut=true;
+    e.blink-=dt; if(e.blink<-.16) e.blink=rr(1.5,6);
+    const t=e.shut?0:e.blink>0?1:.05; e.lid=lerp(e.lid,t,1-Math.exp(-dt*(t<e.lid?30:6)));
+    if(e.shut&&e.lid<.05){ e.s.visible=false; e.hideT=rr(1.5,5); continue; }
+    const k=clamp(d*.11,1,3.2); e.s.scale.set(.28*k,.14*k*e.lid,1); e.s.visible=e.lid>.04; } }
+// the last shard: whatever is near you is sent far off, so there is a head start for the rift
+function scatter(){ for(const e of EYES) if(Math.hypot(e.x-TP.x,e.z-TP.z)<20){ e.s.visible=false; e.hideT=rr(.3,2); }
+  for(const r of RAP) if(r.root.visible&&r.d<20){ const v=pickVP(r,20,34,true,true)||pickVP(r,16,34,false,true); if(v) placeAt(r,v); } }
+// something out there to make a sound: a raptor if one is about, otherwise one of the eyes
+function voice(){ const rs=RAP.filter(r=>r.root.visible&&r.st!=='retreat'); if(rs.length) return rs[(rnd()*rs.length)|0];
+  const es=EYES.filter(e=>e.s.visible); if(!es.length) return null; const e=es[(rnd()*es.length)|0];
+  return {x:e.x,z:e.z,d:Math.hypot(e.x-TP.x,e.z-TP.z)}; }
 
 /* ================= THE HUNT ================= */
 const TP={x:0,z:0,bob:0,acc:0,jy:0,vy:0};
 const D={t:0,dark:0,lightsOut:false,flashDie:0,flashDead:false,sput:0,sputT:0,hunt:false,huntIn:-1,shards:0,callT:24,clickT:14,beatT:0,flick:0,flickT:45,danger:0,flashOn:true};
-// until the last shard only the eyes exist; the bodies come with the dark
+// until the last shard there are no bodies, only the eyes; the raptors come with the dark
 function reveal(on){ for(const r of RAP) for(const m of r.parts) m.visible=on; }
 function inViewXZ(x,z,y){ return onScreen(x,(y==null?gh(x,z)+1.9:y),z,.92); }
 function headY(r){ return gh(r.x,r.z)+1.9; }
-function placeAt(r,v){ r.x=v.x; r.z=v.z; r.tx=v.x; r.tz=v.z; r.h=Math.atan2(TP.x-r.x,TP.z-r.z); r.root.visible=true; }
+function placeAt(r,v){ r.x=v.x; r.z=v.z; r.tx=v.x; r.tz=v.z; r.h=Math.atan2(TP.x-r.x,TP.z-r.z); r.lid=0; r.root.visible=true; }
 function pickVP(r,minD,maxD,hidden,far){ let best=null,bs=-1e9;
   for(const v of VP){ const d=Math.hypot(v.x-TP.x,v.z-TP.z); if(d<minD||d>maxD) continue;
     if(RAP.some(o=>o!==r&&o.st!=='off'&&Math.hypot(o.tx-v.x,o.tz-v.z)<5)) continue;
+    if(D.shards>=3&&Math.hypot(v.x-RIFTP.x,v.z-RIFTP.z)<10) continue; // leave the way home open
     if(hidden&&inViewXZ(v.x,v.z)) continue; const s=(far?d:0)+rnd()*8; if(s>bs){ bs=s; best=v; } }
   return best; }
 function panOf(x,z){ tv.set(x,1.6,z).sub(cam.position).applyQuaternion(tq.copy(cam.quaternion).invert()); return clamp(tv.x/Math.max(1,Math.hypot(tv.x,tv.z)),-1,1); }
 function vol(d,k){ return clamp((k||1.4)/(1+d*.22),0,1); }
 function relocate(r){
-  if(!D.hunt){ const v=pickVP(r,15,26,true)||pickVP(r,15,26,false); if(v){ if(r.seen||inViewXZ(v.x,v.z)) r.hideT=rr(1,2.5); placeAt(r,v); } r.st='watch'; r.tm=rr(4,9); return; }
   const v=pickVP(r,14,26,false)||VP[(rnd()*VP.length)|0]; r.tx=v.x; r.tz=v.z;
   // out of sight on both ends: it is simply somewhere else when you look back
   if(!r.seen&&!inViewXZ(v.x,v.z)){ placeAt(r,v); r.st='watch'; r.tm=rr(6,14); } else { r.st='walk'; } }
 function retreat(r){ if(r.d<14) snd.rustle(panOf(r.x,r.z),vol(r.d));
-  // before the dark: the eyes just go out, and open again somewhere far off a moment later
-  if(!D.hunt){ const v=pickVP(r,16,28,true,true)||pickVP(r,14,30,false,true); if(v) placeAt(r,v); r.st='watch'; r.tm=rr(4,9); r.hideT=rr(1.5,4); return; }
   const v=pickVP(r,14,30,false,true)||VP[(rnd()*VP.length)|0]; r.tx=v.x; r.tz=v.z; r.st='retreat'; r.tm=0; }
 function attack(r){ if(S.mode!=='cret') return; S.mode='dead'; S.t=0; D.killer=r; r.st='attack'; snd.screech(); S.glitch=1; R.unlock();
   D.yaw0=P.yaw; D.yawTo=Math.atan2(-(r.x-TP.x),-(r.z-TP.z)); objEl.classList.remove('on'); }
@@ -547,9 +586,8 @@ function rapThink(r,dt){
   tv2.set(r.x,gh(r.x,r.z)+1.3,r.z).sub(cam.position); const ld=tv2.length(); tv2.divideScalar(ld||1);
   tv.set(0,0,-1).applyQuaternion(cam.quaternion); const lit=D.flashOn&&(D.flashDead?D.sput>0:D.flick<=0)&&ld<12&&tv.dot(tv2)>.9; r.litT=lit?r.litT+dt:0;
   let spd=0, tx=r.tx, tz=r.tz; r.crouch=lerp(r.crouch,0,dt*2); r.lookW=1;
-  if(!D.hunt&&(r.st==='watch'||r.st==='walk')&&d<13){ retreat(r); return; } // keeps its distance, for now
   switch(r.st){
-    case 'off': r.tm-=dt; if(r.tm<=0){ const v=D.hunt?(pickVP(r,16,30,true,true)||pickVP(r,12,34,false,true)):pickVP(r,15,26,true); if(v){ placeAt(r,v); r.st=D.hunt?'hunt':'watch'; r.tm=rr(4,9); } else r.tm=1; } return;
+    case 'off': if(!D.hunt) return; r.tm-=dt; if(r.tm<=0){ const v=pickVP(r,20,34,true,true)||pickVP(r,14,34,false,true); if(v){ placeAt(r,v); r.st='hunt'; r.tm=rr(4,9); } else r.tm=1; } return;
     case 'watch': r.tm-=dt; r.h=angLerp(r.h,Math.atan2(dx,dz),dt*1.5); r.crouch=lerp(r.crouch,.6,dt);
       if(r.litT>.45) retreat(r); else if(r.tm<=0) relocate(r); break;
     case 'walk': spd=1.3; r.lookW=.7; r.crouch=.4;
@@ -582,21 +620,26 @@ function rapPose(r,dt){ if(!r.root.visible) return; const a=clamp(r.mv/2.6,0,1);
   r.root.updateMatrixWorld(true); r.head.lookAt(cam.position); tq.copy(r.head.quaternion).multiply(_q.setFromEuler(te.set(0,0,r.tilt)));
   const ang=Math.abs(angLerp(0,Math.atan2(TP.x-r.x,TP.z-r.z)-r.h,1)), w=r.lookW*(ang>2?0:1);
   const target=r.qRest.clone().slerp(tq,w); r.qCur.slerp(target,1-Math.exp(-dt*14)); r.head.quaternion.copy(r.qCur);
-  // eyes: lit when the head faces you; blink now and then; dark while it bolts
-  r.blink-=dt; if(r.blink<-.13) r.blink=rr(1.2,4); if(r.hideT>0) r.hideT-=dt;
+  // eyes: lit when the head faces you; the lids snap shut and slide back open; dark while it bolts
+  r.blink-=dt; if(r.blink<-.16) r.blink=rr(1.5,4.5); if(r.hideT>0) r.hideT-=dt;
   r.head.updateMatrixWorld(true); r.head.getWorldQuaternion(tq); tv.set(0,0,1).applyQuaternion(tq); r.head.getWorldPosition(tv2); const toCam=cam.position.clone().sub(tv2).normalize();
-  r.eyes.visible=r.st!=='retreat'&&r.hideT<=0&&r.blink>0&&tv.dot(toCam)>.25;
-  r.eyeP.size=r.d<6?3:2;
+  const on=r.st!=='retreat'&&r.hideT<=0&&tv.dot(toCam)>.25, lidT=r.blink>0?1:.05;
+  r.lid=on?lerp(r.lid,lidT,1-Math.exp(-dt*(lidT<r.lid?45:7))):0;
+  r.eyes.visible=r.lid>.04;
+  // bodiless in the dark they loom, big enough to read from across the sinkhole; once hunting they sit in the skull
+  r.eyes.scale.setScalar(D.hunt?clamp(r.d*.05,.7,1.6):clamp(r.d*.11,1,3.2));
+  for(const e of r.eyeS) e.scale.set(.28,.14*r.lid,1); r.eyeMat.rotation=-r.tilt*.6;
 }
 function director(dt){ D.t+=dt;
   if(D.huntIn>0){ D.huntIn-=dt; if(D.huntIn<=0){ D.hunt=true; reveal(true); RAP.forEach((r,i)=>{ if(r.st==='off') r.tm=.5+i; else r.st='hunt'; }); snd.growl(0,.8); } }
   // the pack talks
-  D.clickT-=dt; if(D.clickT<=0){ D.clickT=rr(9,20); const r=RAP.filter(r=>r.root.visible&&r.st!=='retreat')[(rnd()*3)|0]; if(r){ snd.click(panOf(r.x,r.z),vol(r.d)); r.jawT=.25; setTimeout(()=>{ r.jawT=0; },400); } }
+  D.clickT-=dt; if(D.clickT<=0){ D.clickT=rr(9,20); const r=voice(); if(r){ snd.click(panOf(r.x,r.z),vol(r.d)); r.jawT=.25; setTimeout(()=>{ r.jawT=0; },400); } }
   D.callT-=dt; if(D.callT<=0){ D.callT=rr(30,60); snd.call(); }
   // danger: how close the nearest hunter is. Silences the insects, starts the heart.
-  let dg=0; for(const r of RAP){ if(!r.root.visible) continue; const k=r.st==='hunt'?1-r.d/16:0; if(k>dg) dg=k; }
+  let dg=0; for(const r of RAP){ if(!r.root.visible) continue; const k=r.st==='hunt'?1-r.d/24:0; if(k>dg) dg=k; }
   D.danger=lerp(D.danger,clamp(dg,0,1),1-Math.exp(-dt*2)); insects(D.lightsOut?0:1-D.danger*.97);
-  if(D.danger>.3){ D.beatT-=dt; if(D.beatT<=0){ D.beatT=lerp(1.1,.42,D.danger); snd.heart(.4+D.danger*.6); } }
+  // once they hunt, the heart never stops: slow and faint at a distance, racing as they close
+  if(D.hunt||D.danger>.05){ D.beatT-=dt; if(D.beatT<=0){ D.beatT=lerp(.95,.34,D.danger); snd.heart(.35+D.danger*.65); } }
   // a flashlight on its last legs, and, once the rift is open, the dark
   if(D.lightsOut) D.dark=Math.min(1,D.dark+dt/3.5);
   if(D.flashDie>0){ D.flashDie-=dt; D.flick=.1; if(D.flashDie<=0){ D.flashDead=true; D.sputT=rr(2,4); snd.crackle(); } }
@@ -610,7 +653,7 @@ function enterCret(){ if(!C) buildCret();
   C.sc.add(cam); setPal(PAL_NIGHT); fallAudioStop(); nightAudio(1); insects(1);
   TP.x=SPAWN.x; TP.z=SPAWN.z; TP.acc=0; TP.jy=TP.vy=0; P.yaw=Math.PI; P.pitch=.72;
   Object.assign(D,{t:0,dark:0,lightsOut:false,flashDie:0,flashDead:false,sput:0,sputT:0,hunt:false,huntIn:-1,shards:0,callT:18,clickT:12,beatT:0,flick:0,flickT:50,danger:0,flashOn:true});
-  RAP.forEach((r,i)=>{ r.st='off'; r.root.visible=false; r.tm=[4,10,16][i]; r.litT=0; r.jawT=0; r.hideT=0; }); reveal(false);
+  RAP.forEach((r,i)=>{ r.st='off'; r.root.visible=false; r.tm=[4,10,16][i]; r.litT=0; r.jawT=0; r.hideT=0; }); reveal(false); resetEyes();
   C.shards.forEach(s=>{ s.got=false; s.g.visible=true; });
   C.rift.g.scale.set(.25,.85,1); C.rift.em.opacity=.35; C.riftL.intensity=.4;
   document.body.classList.add('twalk'); $('#yearVal').textContent='130M BC'; $('#year').classList.add('past'); $('#shiftBtn').textContent='Leave rift';
@@ -627,8 +670,8 @@ function cretFrame(dt,inp){ const t=S.t;
       TP.bob+=dt*(inp.run?11:8); TP.acc+=Math.hypot(vx,vz); if(TP.jy<=0&&TP.acc>(inp.run?1:.78)){ TP.acc=0; snd.step(); } }
     // shards
     for(const s of C.shards){ if(s.got) continue; if(Math.hypot(TP.x-s.x,TP.z-s.z)<1.3){ s.got=true; s.g.visible=false; D.shards++; snd.chime(); S.glitch=.5;
-      if(D.shards<3){ msg(`Shard ${D.shards} of 3`); RAP.forEach(r=>{ if(r.root.visible) setTimeout(()=>snd.click(panOf(r.x,r.z),vol(r.d)),rnd()*900); }); }
-      else { msg('The rift is open'); D.lightsOut=true; D.flashDie=1.8; D.huntIn=4.5; snd.thud(); setTimeout(()=>snd.growl(0,.7),2600); } updateObjective(); } }
+      if(D.shards<3){ msg(`Shard ${D.shards} of 3`); for(let k=0;k<3;k++){ const r=voice(); if(r) setTimeout(()=>snd.click(panOf(r.x,r.z),vol(r.d)),rnd()*900); } }
+      else { msg('The rift is open'); D.lightsOut=true; D.flashDie=1.8; D.huntIn=4.5; scatter(); snd.thud(); setTimeout(()=>snd.growl(0,.7),2600); } updateObjective(); } }
     if(D.shards>=3&&Math.hypot(TP.x-RIFTP.x,TP.z-RIFTP.z)<1.5) leave();
     director(dt);
   }
@@ -646,6 +689,7 @@ function cretFrame(dt,inp){ const t=S.t;
   cam.rotation.set(pitch,P.yaw,reduce?0:Math.sin(TP.bob*.5)*.004);
   cam.updateMatrixWorld();
   for(const r of RAP) rapPose(r,dt);
+  eyesFrame(dt);
   // flashlight (with the odd failing flicker)
   const fl=D.flick>0?(Math.random()<.5?0:.6):1; C.flash.intensity=!D.flashOn?0:D.flashDead?(D.sput>0?(Math.random()<.65?2.4:.4):0):2.6*fl; if(S.mode==='dead') C.flash.intensity=2.6;
   // rift + shards

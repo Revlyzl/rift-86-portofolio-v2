@@ -371,7 +371,9 @@ let touchUI=coarse; // also flips on at the first touch, for touchscreen laptops
 if(coarse){ document.body.classList.add('touch'); $('#ctl').textContent=TOUCH_CTL; }
 
 /* ================= AUDIO ================= */
-let ac=null, master=null, soundOn=true, nb=null, bedF=null, bedP=null, radioG=null, music=null, musicG=null, musicLP=null, stepSide=0;
+let ac=null, master=null, soundOn=true, nb=null, bedF=null, bedP=null, radioG=null, music=null, musicG=null, musicLP=null, mkWh=null, mkWhG=null, mkWhOn=false, mkNz=null, mkNzG=null, mkPg=null, mkHelp=null, stepSide=0;
+const MKW_MIN=.12, MKW_MAX=2.2; // whisper volume at the far end of the hall / right before it goes
+const MKN_VOL=.5, MKP_VOL=1, MKH_VOL=1.6; // the Marker's white noise (steady, wherever you stand) / poltergeist on top of it (relative) / the HELP US at the end
 function initAudio(){
   if(ac) return;
   try{
@@ -397,6 +399,13 @@ function initAudio(){
     musicLP=ac.createBiquadFilter(); musicLP.type='lowpass'; musicLP.frequency.value=20000; musicG=ac.createGain(); musicG.gain.value=0;
     musicLP.connect(musicG).connect(master);
     try{ music=new Audio('audio/abandoned-halls.mp3'); music.loop=true; music.preload='auto'; ac.createMediaElementSource(music).connect(musicLP); const pr=music.play(); if(pr&&pr.catch) pr.catch(()=>{}); }catch(e){ music=null; }
+    // the Marker's sounds: voices (Four Voices Whispering, louder the closer you get), a steady white noise with a poltergeist in it, and HELP US
+    mkWhG=ac.createGain(); mkWhG.gain.value=0; mkWhG.connect(master);
+    mkNzG=ac.createGain(); mkNzG.gain.value=0; mkNzG.connect(master);
+    loadClip('audio/marker-whispers.mp3',c=>{ mkWh=c; if(markerOn) mkWhStart(); });
+    loadClip('audio/marker-noise.mp3',c=>{ mkNz=c; if(markerOn) mkWhStart(); });
+    loadClip('audio/marker-poltergeist.mp3',c=>{ mkPg=c; if(markerOn) mkWhStart(); });
+    loadClip('audio/help-us.mp3',c=>{ mkHelp=c; });
   }catch(e){ ac=null; }
 }
 function env(g,t,peak,a,dcy){ g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(peak,t+a); g.gain.exponentialRampToValueAtTime(.0001,t+a+dcy); }
@@ -404,6 +413,23 @@ function noise(t,dur,type,freq,q,peak,dcy,dest){ const s=ac.createBufferSource()
   const g=ac.createGain(); env(g,t,peak,.005,dcy); s.connect(f).connect(g).connect(dest||master); s.start(t); s.stop(t+dur); return f; }
 function tone(t,type,f0,f1,peak,a,dcy,dest){ const o=ac.createOscillator(), g=ac.createGain(); o.type=type; o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f1,t+a+dcy);
   env(g,t,peak,a,dcy); o.connect(g).connect(dest||master); o.start(t); o.stop(t+a+dcy+.05); }
+// decoded (not an <audio> tag) so loops are gapless; the silent head and tail are cut off
+function loadClip(url,done){ fetch(url).then(r=>r.arrayBuffer()).then(b=>ac.decodeAudioData(b)).then(buf=>{
+  const n=buf.length, ch=[...Array(buf.numberOfChannels)].map((_,i)=>buf.getChannelData(i)), loud=i=>ch.some(d=>Math.abs(d[i])>.02);
+  let a=0, z=n-1; while(a<z&&!loud(a)) a++; while(z>a&&!loud(z)) z--;
+  done({buf,s:a/buf.sampleRate,e:z/buf.sampleRate}); }).catch(()=>{}); }
+function loopClip(c,at,dest,vol){ const src=ac.createBufferSource(), g=ac.createGain(); src.buffer=c.buf; src.loop=true; src.loopStart=c.s; src.loopEnd=c.e;
+  g.gain.value=vol; src.connect(g).connect(dest); src.start(ac.currentTime,c.s+at); }
+// started the first time the Marker shows and left running; setBeds and the frame loop ride the volumes.
+// the voices play twice, half a cycle apart: one copy's pauses are covered by the other, so they never stop
+let mkNzOn=false, mkPgOn=false;
+function mkWhStart(){ if(!ac) return;
+  if(mkWh&&!mkWhOn){ mkWhOn=true; const len=mkWh.e-mkWh.s; loopClip(mkWh,0,mkWhG,.7); loopClip(mkWh,len/2,mkWhG,.7); }
+  if(mkNz&&!mkNzOn){ mkNzOn=true; loopClip(mkNz,0,mkNzG,1); }
+  if(mkPg&&!mkPgOn){ mkPgOn=true; loopClip(mkPg,0,mkNzG,MKP_VOL); } }
+// one-shot; returns how long it lasts so the ending can wait for it
+function playHelp(){ if(!ac||!mkHelp) return 0; const src=ac.createBufferSource(), g=ac.createGain(); src.buffer=mkHelp.buf; g.gain.value=MKH_VOL;
+  src.connect(g).connect(master); src.start(ac.currentTime,mkHelp.s,mkHelp.e-mkHelp.s); return mkHelp.e-mkHelp.s; }
 const TUNE=[[392,.4],[440,.4],[523,.8],[440,.4],[392,.4],[330,.8],[294,.4],[330,.4],[392,1.2],[0,.8]];
 let tuneTimer=null;
 function startTune(){ let i=0; const step=()=>{ if(!ac) return; const [f,d]=TUNE[i%TUNE.length]; i++;
@@ -424,7 +450,6 @@ const sfx={
   drip(){ if(!ac) return; const t=ac.currentTime; tone(t,'sine',1400+Math.random()*500,500,.05,.002,.12); },
   thump(){ if(!ac) return; const t=ac.currentTime; tone(t,'sine',70,32,.35,.01,.6); noise(t,.6,'lowpass',300,1,.18,.45); },
   shift(){ if(!ac) return; const t=ac.currentTime; noise(t,1.2,'bandpass',1800,2,.3,.9); tone(t,'sawtooth',900,40,.12,.01,.9); tone(t+.05,'square',120,1200,.05,.01,.5); tone(t,'sine',60,30,.4,.01,1.1); },
-  heart(v){ if(!ac) return; const t=ac.currentTime; tone(t,'sine',64,36,.5*v,.005,.32); noise(t,.22,'lowpass',160,1,.28*v,.18); },
   whisper(){ if(!ac) return; const t=ac.currentTime; tone(t,'sawtooth',55,50,.12,.6,2.4); tone(t,'sine',233,196,.04,.5,2.2);
     for(let i=0;i<16;i++) noise(t+i*.12+Math.random()*.1,.3,'bandpass',500+Math.random()*2200,7,.14,.22); },
   glimpse(){ if(!ac) return; const t=ac.currentTime; noise(t,.4,'bandpass',2600,4,.12,.3); tone(t,'square',220,180,.03,.01,.3); },
@@ -433,8 +458,9 @@ const sfx={
 let travelling=false; // true while rift-travel.js owns the screen; the corridor goes quiet
 let markerOn=false, dustT=0; // the Marker is in the corridor (see setMarker)
 function setBeds(){ if(!ac) return; const t=ac.currentTime; const past=era==='past', away=travelling||markerOn;
-  bedF.gain.setTargetAtTime(past||away?0:.3,t,.4); bedP.gain.setTargetAtTime(past&&!away?1:0,t,.4);
-  if(musicG){ musicG.gain.setTargetAtTime(away?0:(past?.24:.62),t,.5); musicLP.frequency.setTargetAtTime(past?650:20000,t,.3); } }
+  bedF.gain.setTargetAtTime(past||away?0:.3,t,.4); bedP.gain.setTargetAtTime(past&&!away?2.2:0,t,.4);
+  if(musicG){ musicG.gain.setTargetAtTime(away||past?0:.62,t,.5); musicLP.frequency.setTargetAtTime(past?650:20000,t,.3); }
+  const mk=markerOn&&!travelling; if(mkWhG){ mkWhG.gain.setTargetAtTime(mk?MKW_MIN:0,t,mk?.6:.25); mkNzG.gain.setTargetAtTime(mk?MKN_VOL:0,t,mk?.6:.25); } }
 
 /* ================= 3D ================= */
 let ok3d=!!window.THREE;
@@ -910,15 +936,18 @@ function setEra(e,quiet){ era=e; applyEra(e); setBeds(); eraHud(); if(typeof upd
   if(!quiet){ glitch=1; sfx.shift(); const s=$('#shift'); s.style.transition='none'; s.style.opacity=reduce?.15:.5; requestAnimationFrame(()=>{ s.style.transition='opacity .6s steps(5)'; s.style.opacity=0; }); } }
 let glitch=0, glimpseT=0, nextGlimpse=18+Math.random()*14;
 // the monolith: appears on every 10th glitch, gone on the next. #marker in the URL makes the very next glitch the 10th.
-let glimpseN=location.hash==='#marker'?9:0, rumble=null, nextWhisper=0, nextSub=0, lastPh=0, PAL_V=null, PAL_MK=null;
+let glimpseN=location.hash==='#marker'?9:0, rumble=null, nextWhisper=0, nextSub=0, jolt=0, nextJolt=0, mkEnd=0, PAL_V=null, PAL_MK=null;
+// it won't be looked at up close: the picture starts tearing at MK_FAR metres, and at MK_NEAR the rift shifts and takes it away
+// (from the rift side it only reaches MK_FAR_RIFT, so stepping out of the rift isn't an instant wall of static)
+const MK_FAR=28, MK_FAR_RIFT=8, MK_NEAR=2.6; // 28: the spawn end of the hall is ~27.4 m away, so it's faint from the first step
 const MK_PAL=['#040203','#0b0506','#140708','#1f0a0a','#2c0d0c','#3d110e','#521610','#6a1b12','#841f13','#a02616',
   '#bd2f1a','#d93a1f','#f0502a','#ff7a45','#1a1414','#2e2524','#4a3d38','#6e5d52','#a08a78','#d9c8b0'];
 const MK_SUB=['MAKE US WHOLE','IT REMEMBERS YOU','ALL OF YOU, ONE','BRING IT BACK','WE ARE WAITING'];
 function mkFlash(txt,ms){ const el=$('#mkTxt'); el.textContent=txt; el.style.transition='none'; el.style.opacity=1;
   setTimeout(()=>{ el.style.transition=`opacity ${ms>300?'.9s steps(6)':'0s'}`; el.style.opacity=0; },ms); }
-function setMarker(on){ if(!ok3d) return; const W=window.__W; markerOn=on; glitch=1;
+function setMarker(on){ if(!ok3d) return; const W=window.__W; markerOn=on; glitch=1; mkEnd=0;
   if(on){ if(Math.abs(P.x)>1.7) P.x=Math.sign(P.x)*1.5; // caught in a room: the doors shut behind you, so you're in the hall
-    if(Math.abs(P.x)<.85&&Math.abs(P.z-W.MZ)<.75) P.z=W.MZ+1.2; } // don't trap the player inside it
+    if(Math.hypot(P.x,P.z-W.MZ)<MK_NEAR+.6) P.z=P.z<W.MZ-1?W.MZ-MK_NEAR-.6:W.MZ+MK_NEAR+.6; } // never arrive close enough to banish it on the spot
   const vec=a=>a.map(h=>{ const c=new THREE.Color(h); return new THREE.Vector3(c.r,c.g,c.b); });
   PAL_V=PAL_V||vec(PAL); PAL_MK=PAL_MK||vec(MK_PAL); postMat.uniforms.pal.value=on?PAL_MK:PAL_V;
   W.dustM.color.setHex(on?0xff5a30:0xb8b2a0); W.dustM.size=on?.016:.01;
@@ -931,8 +960,13 @@ function setMarker(on){ if(!ok3d) return; const W=window.__W; markerOn=on; glitc
         const o=ac.createOscillator(), og=ac.createGain(); o.type=ty; o.frequency.value=f; og.gain.value=v; o.connect(og).connect(f>200?g:dl); o.start(); }
       rumble=g; }
     rumble.gain.setTargetAtTime(on&&!travelling?.75:0,ac.currentTime,on?1.2:.15); }
-  if(on){ sfx.whisper(); sfx.heart(1.4); sfx.thump(); nextWhisper=4; nextSub=5+Math.random()*4; lastPh=0; if(!reduce) mkFlash('MAKE US WHOLE',1300); }
+  if(on) mkWhStart(); // keeps running from then on; setBeds and the frame loop just ride its volume
+  if(on){ sfx.whisper(); sfx.thump(); nextWhisper=4; nextSub=5+Math.random()*4; jolt=1; nextJolt=2; if(!reduce) mkFlash('MAKE US WHOLE',1300); }
   if(started) updateAim(); }
+// too close: you're held in place, the voices drop out, it begs, and only then does the rift shift it away
+function mkEnding(){ const d=playHelp(); mkEnd=Math.max(.4,d+.1); if(mkWhG) mkWhG.gain.setTargetAtTime(0,ac.currentTime,.05); if(!reduce) mkFlash('HELP US',Math.min(300,mkEnd*1000)); }
+function banishMarker(){ setMarker(false); glitch=reduce?1:2.4; sfx.shift(); sfx.glimpse();
+  const s=$('#shift'); s.style.transition='none'; s.style.opacity=reduce?.2:.85; requestAnimationFrame(()=>{ s.style.transition='opacity .9s steps(6)'; s.style.opacity=0; }); }
 // crossover easter egg: shift time seven times inside five seconds and the rift starts listening back
 let marked=false, shiftTimes=[];
 function toggleEra(){ setEra(era==='past'?'future':'past');
@@ -1152,7 +1186,7 @@ function loop(now){
   const m=Math.hypot(f,s); let moving=false;
   const run=keys['shift']||(sId!==null&&Math.hypot(sx,sy)>RUN_AT);
   if(inTravel()){ travel.frame(dt,{f,s,m,run}); return; }
-  if(started && m>.05 && !panelOpen){ const sp=(run?3.8:2.2)*Math.min(1,m)/Math.max(1,m); const yaw=P.yaw;
+  if(started && m>.05 && !panelOpen && !mkEnd){ const sp=(run?3.8:2.2)*Math.min(1,m)/Math.max(1,m); const yaw=P.yaw;
     const vx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)*sp*dt, vz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)*sp*dt;
     if(!blocked(P.x+vx,P.z)) P.x+=vx; if(!blocked(P.x,P.z+vz)) P.z+=vz; moving=true;
     P.stepAcc+=Math.hypot(vx,vz); if(P.stepAcc>(run?1.0:.78)){ P.stepAcc=0; sfx.step(); } }
@@ -1205,19 +1239,27 @@ function loop(now){
     if(on!==s.vis){ s.el.classList.toggle('on',on); s.vis=on; }
     s.el.classList.toggle('hl',hovKey===s.key&&s.kind!=='door'); }
 
-  if(markerOn){ // a heartbeat, lub-dub: everything red swells on it and the floor shakes
-    const ph=tAcc%1.25, pulse=Math.min(1,Math.exp(-ph*9)+(ph>.3?Math.exp(-(ph-.3)*9)*.7:0));
-    if(ph<lastPh){ sfx.heart(1); if(!reduce) glitch=Math.max(glitch,.15); } if(lastPh<.3&&ph>=.3) sfx.heart(.65); lastPh=ph;
-    scene.fog.color.setRGB(.14+pulse*.14,.015,.01); scene.fog.density=.08-pulse*.025;
-    W.hemi.color.setHex(0x9a2a1a); W.hemi.groundColor.setHex(0x120303); W.hemi.intensity=.14+pulse*.42;
-    for(const L of W.LAMPS){ const dead=Math.random()<.05; L.L.color.setHex(0xff2a14); L.L.intensity=dead?0:.1+pulse*.85; L.lm.color.setRGB(dead?.1:.25+pulse*.75,.03,.02); }
+  if(markerOn){ // an earthquake that never stops: a rolling tremor, aftershocks on top, and the closer you get the more the picture tears
+    jolt=Math.max(0,jolt-dt*1.6); nextJolt-=dt; if(nextJolt<=0){ nextJolt=1.5+Math.random()*3.5; jolt=.6+Math.random()*.4; sfx.thump(); }
+    const roll=.5+.25*Math.sin(tAcc*.9)+.25*Math.sin(tAcc*2.3+1), q=Math.min(1,roll*.55+jolt*.7); // 0..1 shaking right now
+    const md=Math.hypot(P.x,P.z-W.MZ), far=P.z<W.MZ?MK_FAR_RIFT:MK_FAR, near=Math.max(0,Math.min(1,(far-md)/(far-MK_NEAR)));
+    if(mkEnd>0){ mkEnd-=dt; if(mkEnd<=0){ mkEnd=0; banishMarker(); } }
+    else if(started&&!panelOpen&&md<MK_NEAR) mkEnding();
+    if(markerOn){
+    if(mkEnd) glitch=Math.max(glitch,reduce?.6:2.1);
+    else if(mkWhG&&!travelling) mkWhG.gain.setTargetAtTime(MKW_MIN+(MKW_MAX-MKW_MIN)*Math.pow(near,1.6),ac.currentTime,.3);
+    if(started&&!panelOpen&&!mkEnd){ glitch=Math.max(glitch,(reduce?.25:1.7)*near*near+(!reduce&&Math.random()<near*.25?near*.9:0)); }
+    scene.fog.color.setRGB(.15+q*.06,.015,.01); scene.fog.density=.07;
+    W.hemi.color.setHex(0x9a2a1a); W.hemi.groundColor.setHex(0x120303); W.hemi.intensity=.3+q*.12;
+    for(const L of W.LAMPS){ const dead=Math.random()<.04+jolt*.2; L.L.color.setHex(0xff2a14); L.L.intensity=dead?0:.45+Math.sin(tAcc*13+L.ph)*q*.25; L.lm.color.setRGB(dead?.1:.6,.03,.02); }
     for(const r of W.R) r.L.intensity=0; W.winL.intensity=.05; W.tvLight.intensity=0;
-    W.riftL.intensity=1.1+pulse*.9; // backlight: keeps the silhouette readable
-    W.flash.intensity=flashOn?.7+pulse*.5:0;
-    W.markL.intensity=.5+pulse*2.2; W.markM.emissiveIntensity=.3+pulse*2; W.mkCrack.opacity=.25+pulse*.75;
-    if(!reduce){ const k=.005+pulse*.055; camera.position.x+=(Math.random()-.5)*k; camera.position.y+=(Math.random()-.5)*k*1.4; camera.rotation.z+=(Math.random()-.5)*k*.4; camera.rotation.x+=(Math.random()-.5)*k*.2; }
-    if(started&&!panelOpen){ nextWhisper-=dt; if(nextWhisper<=0){ nextWhisper=5+Math.random()*5; sfx.whisper(); }
-      if(!reduce){ nextSub-=dt; if(nextSub<=0){ nextSub=6+Math.random()*7; mkFlash(MK_SUB[(Math.random()*MK_SUB.length)|0],90); glitch=Math.max(glitch,.5); } } } }
+    W.riftL.intensity=1.5; // backlight: keeps the silhouette readable
+    W.flash.intensity=flashOn?.9:0;
+    W.markL.intensity=1.2+near*1.5; W.markM.emissiveIntensity=.9+near*1.2; W.mkCrack.opacity=.6+jolt*.4;
+    if(!reduce){ const k=.022+q*.085; camera.position.x+=(Math.sin(tAcc*11.3)*.6+(Math.random()-.5))*k; camera.position.y+=(Math.sin(tAcc*14.7)*.5+(Math.random()-.5))*k*.9;
+      camera.rotation.z+=(Math.sin(tAcc*8.1)*.6+(Math.random()-.5))*k*.45; camera.rotation.x+=(Math.random()-.5)*k*.28; camera.rotation.y+=(Math.random()-.5)*k*.16; }
+    if(started&&!panelOpen&&!mkEnd){ nextWhisper-=dt; if(nextWhisper<=0){ nextWhisper=5+Math.random()*5; sfx.whisper(); }
+      if(!reduce){ nextSub-=dt; if(nextSub<=0){ nextSub=6+Math.random()*7; mkFlash(MK_SUB[(Math.random()*MK_SUB.length)|0],250); glitch=Math.max(glitch,.5); } } } } }
   postMat.uniforms.time.value=tAcc; postMat.uniforms.glitch.value=glitch; postMat.uniforms.lift.value=visEra==='past'?0:.02;
   renderer.setRenderTarget(rt); renderer.render(scene,camera); renderer.setRenderTarget(null); renderer.render(postScene,postCam);
 }
