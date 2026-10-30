@@ -240,7 +240,7 @@ a.pbtn{display:inline-block;text-decoration:none;color:var(--ink)}
     <div class="year pbox" id="year">TIMELINE<b id="yearVal">20??</b></div>
     <button class="pbtn" id="shiftBtn" type="button" title="Shift time (T)">Shift time</button>
     <button class="pbtn" id="sound" type="button" aria-pressed="true">Sound</button>
-    <!-- <button class="pbtn" id="tmpMarker" type="button" title="TEMP: force the next glitch to be the 10th">Marker</button> TEMP: remove before release -->
+    <button class="pbtn" id="tmpMarker" type="button" title="TEMP: force the next glitch to be the 10th">Marker</button> TEMP: remove before release
 
   </div>
 </header>
@@ -505,17 +505,66 @@ function tiles(dec){ return makeTex(32,32,(g,w,h)=>{ for(let y=0;y<4;y++) for(le
   speck(g,w,h,60,dec?['#1a1d1c','#4a4d4a']:['#5e4a33','#b08a5c']); g.fillStyle='rgba(0,0,0,.3)'; for(let i=0;i<4;i++){ g.fillRect(i*8,0,1,h); g.fillRect(0,i*8,w,1);} if(dec){ grime(g,w,h,14,.7); crack(g,w,h,2);} }); }
 function parquet(dec){ return makeTex(32,32,(g,w,h)=>{ g.fillStyle=dec?'#2e241c':'#8a5a32'; g.fillRect(0,0,w,h); for(let y=0;y<8;y++) for(let x=0;x<2;x++){ const v=rnd(); g.fillStyle=dec?(v>.5?'#2e241c':'#3a2c20'):(v>.5?'#8a5a32':'#9b6a3c'); const o=(y&1)*8; const xx=(x*16+o)%32; g.fillRect(xx,y*4,16,4); if(xx+16>32) g.fillRect(0,y*4,xx+16-32,4);}
   g.fillStyle='rgba(0,0,0,.35)'; for(let y=0;y<8;y++) g.fillRect(0,y*4,w,1); if(dec){ grime(g,w,h,10,.8);} }); }
-function skyline(dec){ return makeTex(128,64,(g,w,h)=>{
-  const gr=g.createLinearGradient(0,0,0,h); if(dec){ gr.addColorStop(0,'#0a0c0f'); gr.addColorStop(.55,'#12262a'); gr.addColorStop(.85,'#6e3720'); gr.addColorStop(1,'#b5622b'); }
-  else{ gr.addColorStop(0,'#1d3836'); gr.addColorStop(.5,'#3b6862'); gr.addColorStop(.8,'#b5622b'); gr.addColorStop(1,'#f0a43c'); }
+/* --- window exterior: layered parallax city (sky, far, mid, near, wires) --- */
+// each layer is a transparent strip that repeats sideways and clamps vertically: the bottom row is solid ground, the top row is empty air
+function layerTex(sd,draw,clampAll,w=128,h=64){ const s=seed; seed=sd; const t=makeTex(w,h,draw); seed=s;
+  t.wrapT=THREE.ClampToEdgeWrapping; if(clampAll) t.wrapS=THREE.ClampToEdgeWrapping; t.minFilter=THREE.NearestFilter; t.generateMipmaps=false; return t; }
+function winSky(dec){ return layerTex(41,(g,w,h)=>{ const hz=h*.7; // horizon sits at v=.3
+  const gr=g.createLinearGradient(0,0,0,h); if(dec){ gr.addColorStop(0,'#0a0c0f'); gr.addColorStop(.45,'#12262a'); gr.addColorStop(.66,'#6e3720'); gr.addColorStop(.72,'#b5622b'); gr.addColorStop(1,'#2a1810'); }
+  else{ gr.addColorStop(0,'#1d3836'); gr.addColorStop(.4,'#3b6862'); gr.addColorStop(.62,'#b5622b'); gr.addColorStop(.7,'#f0a43c'); gr.addColorStop(1,'#6e3720'); }
   g.fillStyle=gr; g.fillRect(0,0,w,h);
-  if(!dec){ g.fillStyle='#e8d9a0'; g.fillRect(92,40,10,10); }
-  let s=seed; seed=777; let x=0;
-  while(x<w){ const bw=10+((rnd()*18)|0), bh=16+((rnd()*30)|0), y=h-bh; g.fillStyle=dec?'#0a0c0f':'#181d22';
-    if(dec && rnd()<.35){ g.fillRect(x,y+((rnd()*10)|0),bw,bh); g.fillRect(x+2,y-4,3,6);} else g.fillRect(x,y,bw,bh);
-    for(let wy=y+3;wy<h-2;wy+=4) for(let wx=x+2;wx<x+bw-2;wx+=3){ const p=rnd(); if(dec? p<.04 : p<.45){ g.fillStyle=dec?'#b5622b':'#f0a43c'; g.fillRect(wx,wy,1,2);} }
-    x+=bw+((rnd()*3)|0); }
-  seed=s; }); }
+  if(dec){ for(let i=0;i<5;i++){ const x=(rnd()*w)|0; g.fillStyle='rgba(10,12,15,.55)'; for(let y=hz;y>8;y-=2) g.fillRect(x+((Math.sin(y*.3+i)*3)|0)-(((hz-y)/6)|0),y,3+(((hz-y)/5)|0),2); } // smoke columns
+    speck(g,w,hz*.45,26,['#434b50','#2a3136']); }
+  else{ g.fillStyle='#e8d9a0'; g.fillRect(84,hz-12,9,9); g.fillRect(85,hz-13,7,11); g.fillRect(83,hz-11,11,7);   // sun just over the roofs
+    for(let i=0;i<9;i++){ g.fillStyle=rnd()<.5?'#d88a58':'#9b6a3c'; const y=(rnd()*hz*.8)|0, cw=10+((rnd()*26)|0); g.fillRect((rnd()*w)|0,y,cw,1); g.fillRect((rnd()*w)|0,y+1,cw*.6,1); } }
+},true); }
+function winCity(dec,sd,o){ return layerTex(sd,(g,w,h)=>{
+  const R=(x,y,a,b)=>{ x|=0; g.fillRect(x,y,a,b); if(x+a>w) g.fillRect(x-w,y,a,b); }; // wraps so the seam tiles
+  let x=0;
+  while(x<w){ const bw=o.w0+((rnd()*(o.w1-o.w0))|0), bh=o.h0+((rnd()*(o.h1-o.h0))|0), y=h-bh, broke=dec&&rnd()<.5, top=[];
+    g.fillStyle=o.col;
+    for(let k=0;k<bw;k++){ top[k]=broke?y+((rnd()*bh*.4+Math.abs(k-bw/2)*.6)|0):y; R(x+k,top[k],1,h-top[k]); }
+    if(!broke&&rnd()<.35) R(x+((bw*rnd())|0),y-3-((rnd()*4)|0),1,6);                       // antenna
+    if(!broke&&o.tank&&rnd()<.3){ R(x+2,y-4,4,4); R(x+2,y-1,1,1); R(x+5,y-1,1,1); }        // water tank
+    g.fillStyle=o.edge; for(let k=bw-1;k<bw;k++) R(x+k,top[k],1,h-top[k]);               // lit edge
+    for(let wy=y+2;wy<h-3;wy+=o.wy) for(let wx=1;wx<bw-1;wx+=o.wx){ if(wy<top[wx]+1) continue; const p=rnd();
+      if(dec? p<o.lit*.12 : p<o.lit){ g.fillStyle=dec?(rnd()<.5?'#b5622b':'#6e3720'):(rnd()<.7?'#f0a43c':'#e8d9a0'); R(x+wx,wy,o.ww,o.wh); }
+      else if(!dec&&p<o.lit+.25){ g.fillStyle=o.dark; R(x+wx,wy,o.ww,o.wh); } }
+    x+=bw+((rnd()*o.gap)|0); }
+  g.fillStyle=o.col; g.fillRect(0,h-2,w,2);
+}); }
+function winWires(dec){ return layerTex(93,(g,w,h)=>{ g.fillStyle='#0a0c0f'; // 256x256 over 9x5 m, so a 1px line is a few cm
+  g.fillRect(40,24,4,h); g.fillRect(30,30,24,2); g.fillRect(34,44,16,2);                      // utility pole, bottom row solid so it runs down
+  for(const [y0,sag] of [[31,26],[45,18],[31,34]]) for(let x=0;x<w;x++){ if(dec&&x>120&&x<150) continue; g.fillRect(x,(y0+Math.sin(x/w*Math.PI)*sag)|0,1,1); }
+  if(dec){ for(let y=40;y<150;y++) g.fillRect(120-((y-40)*.12|0),y,1,1); }                    // snapped line hanging down
+},false,256,256); }
+const WIN_L=[[300,1200,500,-150],[90,220,60,-40],[35,80,30,-20],[12,28,12,-9],[3.5,9,5,-3.5]]; // depth m, width m, height m, bottom edge m (relative to window centre)
+function winSet(dec){ return [winSky(dec),
+  winCity(dec,11,{w0:6,w1:14,h0:14,h1:38,col:dec?'#141a1e':'#5e6a6a',edge:dec?'#1d2224':'#687072',dark:'#434b50',wx:2,wy:3,ww:1,wh:1,lit:.3,gap:2}),
+  winCity(dec,23,{w0:9,w1:20,h0:12,h1:40,col:dec?'#0e1214':'#2a3136',edge:dec?'#181d22':'#434b50',dark:'#181d22',wx:3,wy:4,ww:1,wh:2,lit:.35,gap:4,tank:true}),
+  winCity(dec,37,{w0:14,w1:30,h0:18,h1:44,col:dec?'#0a0c0f':'#181d22',edge:dec?'#12161a':'#2a3136',dark:'#0a0c0f',wx:4,wy:5,ww:2,wh:3,lit:.4,gap:6,tank:true}),
+  winWires(dec)]; }
+function winMat(){ const u={haze:{value:new THREE.Color()},hz:{value:new THREE.Vector4(.55,.3,.1,0)}};
+  WIN_L.forEach((l,i)=>{ u['t'+i]={value:null}; u['L'+i]={value:new THREE.Vector4(...l)}; });
+  return new THREE.ShaderMaterial({uniforms:u,
+    vertexShader:`varying vec3 vW,vT,vB,vN; varying vec2 vL;
+      void main(){ vL=position.xy; vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz;
+        vT=normalize(mat3(modelMatrix)*vec3(1,0,0)); vB=normalize(mat3(modelMatrix)*vec3(0,1,0)); vN=normalize(mat3(modelMatrix)*vec3(0,0,1));
+        gl_Position=projectionMatrix*viewMatrix*w; }`,
+    fragmentShader:`uniform sampler2D t0,t1,t2,t3,t4; uniform vec4 L0,L1,L2,L3,L4,hz; uniform vec3 haze;
+      varying vec3 vW,vT,vB,vN; varying vec2 vL;
+      vec3 d; float ox;
+      // where the eye ray through this pixel meets a flat layer L.x metres behind the glass
+      vec4 lay(sampler2D t,vec4 L){ vec2 p=vec2(vL.x+ox,vL.y)+d.xy*(L.x/d.z); return texture2D(t,vec2(p.x/L.y,(p.y-L.w)/L.z)); }
+      void main(){ vec3 r=normalize(vW-cameraPosition); d=vec3(dot(r,vT),dot(r,vB),max(dot(r,-vN),.03));
+        ox=dot(vW,vT)-vL.x; // world-anchored, so each window looks onto its own stretch of city
+        vec3 c=lay(t0,L0).rgb; vec4 s;
+        s=lay(t1,L1); c=mix(c,mix(s.rgb,haze,hz.x),step(.5,s.a));
+        s=lay(t2,L2); c=mix(c,mix(s.rgb,haze,hz.y),step(.5,s.a));
+        s=lay(t3,L3); c=mix(c,mix(s.rgb,haze,hz.z),step(.5,s.a));
+        s=lay(t4,L4); c=mix(c,s.rgb,step(.5,s.a));
+        gl_FragColor=vec4(c,1.); }`}); }
+function setWin(m,set,haze){ set.forEach((t,i)=>m.uniforms['t'+i].value=t); m.uniforms.haze.value.setHex(haze); }
 function plate(txt){ return makeTex(32,16,(g,w,h)=>{ g.fillStyle='#b08a3c'; g.fillRect(0,0,w,h); g.fillStyle='#5e4a33'; g.fillRect(0,h-2,w,2); g.fillRect(w-2,0,2,h);
   g.fillStyle='#181d22'; g.font='bold 12px monospace'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt,w/2,h/2+1); }); }
 function calendar(){ return makeTex(32,48,(g,w,h)=>{ g.fillStyle='#d9d3bf'; g.fillRect(0,0,w,h); g.fillStyle='#8a2f26'; g.fillRect(0,0,w,14);
@@ -569,7 +618,7 @@ const tx={
   wpP:wallpaper(false), wpF:wallpaper(true),
   tlP:tiles(false), tlF:tiles(true),
   pqP:parquet(false), pqF:parquet(true),
-  skP:skyline(false), skF:skyline(true)
+  winP:winSet(false), winF:winSet(true)
 };
 
 const M={
@@ -588,8 +637,7 @@ const M={
   rubble:mat(0x6b7071,0x434b50), paper:mat(0xd9d3bf,0x8a8a80,{side:THREE.DoubleSide}),
   water:new THREE.MeshPhongMaterial({color:0x0a1214,shininess:90,specular:0x5a8a84})
 };
-const skyM=new THREE.MeshBasicMaterial({map:tx.skF,fog:false});
-REG.push({m:skyM,p:{c:0xffffff,map:tx.skP,e:0},f:{c:0xffffff,map:tx.skF,e:0}});
+const skyM=winMat(); setWin(skyM,tx.winF,0x3a2418);
 
 /* ---------- corridor shell ---------- */
 const ZA=-34, ZB=2;
@@ -872,7 +920,8 @@ var dustM=new THREE.PointsMaterial({color:0xb8b2a0,size:.01,transparent:true,opa
 var dust=new THREE.Points(dg,dustM); scene.add(dust);
 
 /* ---------- export for the loop ---------- */
-window.__W={RZ,MZ,mk,markM,markL,mkCrack,LAMPS,R,riftBits,riftOuter,riftCore,riftL,tvX,tvT,tvS,hemi,winL,flash,dustM,dust,dbase,dpos,dg,tvLight};
+var winTx={p:tx.winP,f:tx.winF};
+window.__W={skyM,winTx,RZ,MZ,mk,markM,markL,mkCrack,LAMPS,R,riftBits,riftOuter,riftCore,riftL,tvX,tvT,tvS,hemi,winL,flash,dustM,dust,dbase,dpos,dg,tvLight};
 }
 
 /* ================= POST: low-res, palette, dither, scanlines ================= */
@@ -930,6 +979,7 @@ function applyEra(e){
   W.flash.intensity=(flashOn&&!past)?3:0;
   W.dustM.opacity=past?.35:.55;
   W.tvLight.color.setHex(past?0xb5622b:0x7da597);
+  setWin(W.skyM,past?W.winTx.p:W.winTx.f,past?0xc07a40:0x3a2418);
 }
 function eraHud(){ const y=$('#year'); y.classList.toggle('past',era==='past'&&!markerOn); y.classList.toggle('mark',markerOn); $('#yearVal').textContent=markerOn?'????':era==='past'?'1986':'20??'; $('#shiftBtn').textContent=era==='past'?'Return to now':'Shift to 1986'; }
 function setEra(e,quiet){ era=e; applyEra(e); setBeds(); eraHud(); if(typeof updateAim==='function'&&started) updateAim();
