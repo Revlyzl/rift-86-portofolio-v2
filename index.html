@@ -1079,11 +1079,11 @@ $('#copy').addEventListener('click',()=>{ const btn=$('#copy'), txt=$('#addr').t
   const fb=()=>{ const r=document.createRange(); r.selectNodeContents($('#addr')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent='Selected · copy it'; setTimeout(()=>btn.textContent='Copy email',2000); };
   try{ navigator.clipboard.writeText(txt).then(done,fb); }catch(e){ fb(); } });
 // TEMP: remove before release. Fires an automatic glitch now; if the monolith is away, this one counts as the 10th.
-function tmpMarker(){ if(!started) start(); if(!markerOn) glimpseN=Math.ceil((glimpseN+1)/10)*10-1; nextGlimpse=0; if(panelOpen) closePanel(); }
-$('#tmpMarker').addEventListener('click',tmpMarker); // TEMP (also the M key)
-$('#shiftBtn').addEventListener('click',()=>{ if(!started) start(); if(inTravel()){ travel.leave(); return; } toggleEra(); });
-$('#sound').addEventListener('click',()=>{ soundOn=!soundOn; $('#sound').setAttribute('aria-pressed',String(soundOn)); $('#sound').textContent=soundOn?'Sound':'Muted';
-  if(!ac) initAudio(); if(ac){ if(ac.state==='suspended') ac.resume(); master.gain.setTargetAtTime(soundOn?1:0,ac.currentTime,.05); } });
+// function tmpMarker(){ if(!started) start(); if(!markerOn) glimpseN=Math.ceil((glimpseN+1)/10)*10-1; nextGlimpse=0; if(panelOpen) closePanel(); }
+// $('#tmpMarker').addEventListener('click',tmpMarker); // TEMP (also the M key)
+// $('#shiftBtn').addEventListener('click',()=>{ if(!started) start(); if(inTravel()){ travel.leave(); return; } toggleEra(); });
+// $('#sound').addEventListener('click',()=>{ soundOn=!soundOn; $('#sound').setAttribute('aria-pressed',String(soundOn)); $('#sound').textContent=soundOn?'Sound':'Muted';
+//   if(!ac) initAudio(); if(ac){ if(ac.state==='suspended') ac.resume(); master.gain.setTargetAtTime(soundOn?1:0,ac.currentTime,.05); } });
 
 /* ================= CONTENT: projects + work log =================
    To add photos: put the image files in the artifact's photos/ folder and list them here, e.g.
