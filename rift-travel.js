@@ -203,7 +203,7 @@ function shimmer(c,t,amt){ for(const b of c.bits){ const j=Math.sin(t*7+b.ph)*.0
 /* ================= THE FALL ================= */
 const ERAS=[
   {key:'cret',date:'c. 130,000,000 BC',name:'Early Cretaceous',note:'Contains jump scares',edge:0xf0a43c},
-  {key:'med',date:'c. AD 1350',name:'Middle Ages',locked:true,edge:0x7da597,sealed:'Sealed · this crack will not hold yet'},
+  {key:'med',date:'c. AD 1350',name:'Middle Ages',note:'Contains flashing lights',edge:0x7da597},
   {key:'atom',date:'AD 2030',name:'The last second',locked:true,edge:0xb5622b,sealed:'Sealed · the blast froze this one shut'},
   {key:'ship',date:'AD 2508',name:'Adrift',locked:true,secret:true,edge:0xff2a1a,tag:'Something is still aboard',sealed:'Sealed · make us whole'}
 ];
@@ -755,5 +755,5 @@ window.RiftTravel={begin,leave,key,click,frame,get active(){ return S.active; }}
 // the kit other eras (rift-<key>.js) build with: shared state, screen, audio and geometry helpers
 window.__RTK={R,S,P,reduce,cam,render,onScreen,setPal,toPal,fadeTo,after,caption,title,untitle,msg,objective,el,
   A,pout,swell,snd,panOf,vol,tex,px,disc,sky,rnd,rr,reseed:n=>{ seed=n; },clamp,lerp,sstep,angLerp,V,
-  put,flush,tbox,hang,part,grp,eyeTex,leave,register:(k,o)=>{ ERA_IMPL[k]=o; }};
+  put,flush,tbox,hang,part,grp,eyeTex,crack,shimmer,fallAudioStop,leave,register:(k,o)=>{ ERA_IMPL[k]=o; }};
 })();
