@@ -1110,7 +1110,7 @@ function loadTravel(ok,fail){ if(travel){ ok(); return; } if(travelLoading) retu
 /* the noclip: interact with the shut lift while the Marker is here and you walk into the doors, then through them.
    The Marker's sound dies the instant you touch metal; the picture tears; on the far side of the wall, rift-travel.js
    takes over in the dark (travel.noclip) and the Backrooms (rift-back.js) fade in. Never hinted at anywhere. */
-let clip=null;
+let clip=null, echoStep=false;
 function noclip(){ if(!ok3d||clip||inTravel()||!markerOn) return; if(panelOpen) closePanel();
   clip={t:0,cut:false,ready:!!travel}; aimKey=null; updateAim();
   if(!travel) loadTravel(()=>{ if(clip) clip.ready=true; },()=>{ clip=null; P.z=window.__W.ZB-.7; });
@@ -1264,7 +1264,7 @@ function loop(now){
   else if(started && m>.05 && !panelOpen && !mkEnd){ const sp=(run?3.8:2.2)*Math.min(1,m)/Math.max(1,m); const yaw=P.yaw;
     const vx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)*sp*dt, vz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)*sp*dt;
     if(!blocked(P.x+vx,P.z)) P.x+=vx; if(!blocked(P.x,P.z+vz)) P.z+=vz; moving=true;
-    P.stepAcc+=Math.hypot(vx,vz); if(P.stepAcc>(run?1.0:.78)){ P.stepAcc=0; sfx.step(); } }
+    P.stepAcc+=Math.hypot(vx,vz); if(P.stepAcc>(run?1.0:.78)){ P.stepAcc=0; sfx.step(); if(echoStep){ echoStep=false; setTimeout(()=>sfx.step(),420); } } } // out of the Backrooms: one step too many, once
   P.bob+=moving?dt*(run?11:8):0;
   const bob=reduce?0:Math.sin(P.bob)*.035;
   camera.position.set(P.x,1.6+bob,P.z);
@@ -1348,7 +1348,7 @@ window.__R86={renderer,rt,postMat,postScene,postCam,P,keys,reduce,PAL,sfx,
   unlock(){ if(locked){ try{ document.exitPointerLock(); }catch(e){} } },
   setTravelling(on){ travelling=on; setBeds(); if(on){ aimKey=null; for(const s of SPOTS){ s.vis=false; s.el.classList.remove('on'); } } },
   // back out of the rift, standing just in front of it and facing down the hall (or out of the lift, if you came in through it)
-  home(at){ if(marked) mark(false); P.x=0; if(at==='lift'){ P.z=window.__W.ZB-.7; P.yaw=0; } else { P.z=window.__W.RZ+2.4; P.yaw=Math.PI; } P.pitch=0; P.bob=0; eraHud(); applyEra(era); glitch=1; sfx.shift(); updateAim(); }
+  home(at){ if(marked) mark(false); P.x=0; echoStep=at==='lift-echo'; if(at==='lift'||at==='lift-echo'){ P.z=window.__W.ZB-.7; P.yaw=0; } else { P.z=window.__W.RZ+2.4; P.yaw=Math.PI; } P.pitch=0; P.bob=0; eraHud(); applyEra(era); glitch=1; sfx.shift(); updateAim(); }
 };
 requestAnimationFrame(loop);
 })();

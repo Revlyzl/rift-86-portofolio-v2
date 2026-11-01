@@ -743,7 +743,7 @@ function leave(){ if(!S.active||S.leaving) return; S.leaving=true; skipEl.hidden
   caption(''); untitle(); objEl.classList.remove('on'); snd.whoosh(); S.glitch=1; fadeTo(1,.7,'#000');
   const from=S.era;
   after(.8,()=>{ const im=impl(); if(im&&im.exit) im.exit(); S.era=null; S.active=false; S.mode=null; Q=[]; msgT=0; msgEl.classList.remove('on'); objEl.classList.remove('on'); capEl.textContent=''; untitle(); fallAudioStop(); if(night) nightAudio(0); setPal(PAL_CORR); postMat.uniforms.glitch.value=0;
-    document.body.classList.remove('travel','twalk'); $('#year').classList.remove('past'); R.setTravelling(false); R.home(from==='back'?'lift':undefined);
+    document.body.classList.remove('travel','twalk'); $('#year').classList.remove('past'); R.setTravelling(false); R.home(from==='back'?(S.backEscaped?'lift-echo':'lift'):undefined);
     fadeEl.style.transition='none'; fadeEl.style.opacity=1; requestAnimationFrame(()=>{ fadeEl.style.transition='opacity 1s steps(8)'; fadeEl.style.opacity=0; setTimeout(()=>{ fadeEl.style.transition='none'; },1100); }); }); }
 function key(k){
   if(S.mode==='fall'&&(k===' '||k==='enter'||k==='escape')) skip();
