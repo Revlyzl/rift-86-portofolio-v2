@@ -77,7 +77,7 @@ let msgT=0; function msg(t,sec){ msgEl.textContent=t; msgEl.classList.add('on');
 function objective(head,line){ objEl.innerHTML=`<b>${head}</b>${line||''}`; objEl.classList.add('on'); }
 
 /* ================= STATE ================= */
-const S={active:false,mode:null,t:0,T:0,fade:0,fadeTo:0,fadeRate:1,glitch:0,cap:'',capT:0,leaving:false};
+const S={active:false,mode:null,era:null,t:0,T:0,fade:0,fadeTo:0,fadeRate:1,glitch:0,cap:'',capT:0,leaving:false};
 let Q=[]; const after=(sec,fn)=>Q.push({at:S.T+sec,fn});
 function fadeTo(v,sec,color){ if(color) fadeEl.style.background=color; S.fadeTo=v; S.fadeRate=sec>0?1/sec:1e6; }
 function caption(t){ S.cap=t; S.capT=0; }
@@ -658,7 +658,7 @@ function enterCret(){ if(!C) buildCret();
   C.rift.g.scale.set(.25,.85,1); C.rift.em.opacity=.35; C.riftL.intensity=.4;
   document.body.classList.add('twalk'); $('#yearVal').textContent='130M BC'; $('#year').classList.add('past'); $('#shiftBtn').textContent='Leave rift';
 }
-function arrive(){ pickEls.forEach(b=>{ b.hidden=true; }); enterCret(); S.mode='enter'; S.t=0; S.fade=1; fadeTo(1,0,'#000'); snd.thud(); R.sfx.shift();
+function arriveCret(){ enterCret(); S.mode='enter'; S.t=0; S.fade=1; fadeTo(1,0,'#000'); snd.thud(); R.sfx.shift();
   title('Temporal recovery · Rift 86','c. 130,000,000 BC','Early Cretaceous · a sinkhole in what will one day be Utah');
   after(3,()=>{ untitle(); fadeTo(0,reduce?.6:2.4); S.mode='cret'; S.t=0; }); after(4.6,updateObjective); }
 
@@ -710,27 +710,41 @@ function cretFrame(dt,inp){ const t=S.t;
 function blockedC(x,z){ if(Math.hypot(x,z)>RB-4.6) return true; if(Math.hypot(x-POND.x,z-POND.z)<POND.r-.7) return true;
   for(const c of CIRC){ const dx=x-c.x, dz=z-c.z, rr2=c.r+.3; if(dx*dx+dz*dz<rr2*rr2) return true; } return false; }
 
+function cretKey(k){ if(S.mode!=='cret') return;
+  if(k===' ') jump(); else if(k==='f'){ if(D.flashDead) msg('The flashlight is dying'); else { D.flashOn=!D.flashOn; R.sfx.ui(); } } else if(k==='t') msg('Time will not shift here'); else if(k>='1'&&k<='5') msg('Your records stayed in 1986'); }
+function cretClick(){ if(S.mode==='cret'&&!R.touch()&&!R.locked()) R.lock(); }
+
+/* ================= ERAS: each one registers how it arrives, runs and takes keys =================
+   The Cretaceous lives in this file; the others are fetched (rift-<key>.js) the first time they are chosen. */
+const ERA_IMPL={cret:{arrive:arriveCret,frame:cretFrame,key:cretKey,click:cretClick}};
+const impl=()=>S.era?ERA_IMPL[S.era]:null;
+function loadEra(k,done){ const sc=document.createElement('script'); sc.src=`rift-${k}.js`;
+  sc.onload=()=>{ if(ERA_IMPL[k]) done(); else leave(); }; sc.onerror=()=>leave(); document.head.appendChild(sc); }
+function arrive(){ pickEls.forEach(b=>{ b.hidden=true; }); const k=ERAS[F.pick].key;
+  const go=()=>{ if(!S.active||S.leaving) return; S.era=k; ERA_IMPL[k].arrive(); };
+  if(ERA_IMPL[k]) go(); else loadEra(k,go); }
+
 /* ================= LIFECYCLE ================= */
 function begin(){ if(S.active) return; S.active=true; S.leaving=false; Q=[]; S.T=0; S.glitch=1;
   R.setTravelling(true); R.unlock(); document.body.classList.add('travel'); $('#shiftBtn').textContent='Leave rift';
   startFall(); }
 function leave(){ if(!S.active||S.leaving) return; S.leaving=true; skipEl.hidden=true; pickEls.forEach(b=>{ b.hidden=true; });
   caption(''); untitle(); objEl.classList.remove('on'); snd.whoosh(); S.glitch=1; fadeTo(1,.7,'#000');
-  after(.8,()=>{ S.active=false; S.mode=null; Q=[]; msgT=0; msgEl.classList.remove('on'); objEl.classList.remove('on'); capEl.textContent=''; untitle(); fallAudioStop(); if(night) nightAudio(0); setPal(PAL_CORR); postMat.uniforms.glitch.value=0;
+  after(.8,()=>{ const im=impl(); if(im&&im.exit) im.exit(); S.era=null; S.active=false; S.mode=null; Q=[]; msgT=0; msgEl.classList.remove('on'); objEl.classList.remove('on'); capEl.textContent=''; untitle(); fallAudioStop(); if(night) nightAudio(0); setPal(PAL_CORR); postMat.uniforms.glitch.value=0;
     document.body.classList.remove('travel','twalk'); $('#year').classList.remove('past'); R.setTravelling(false); R.home();
     fadeEl.style.transition='none'; fadeEl.style.opacity=1; requestAnimationFrame(()=>{ fadeEl.style.transition='opacity 1s steps(8)'; fadeEl.style.opacity=0; setTimeout(()=>{ fadeEl.style.transition='none'; },1100); }); }); }
 function key(k){
   if(S.mode==='fall'&&(k===' '||k==='enter'||k==='escape')) skip();
   else if(S.mode==='choose'){ if(k>='1'&&k<='4') choose(+k-1); else if(k==='escape') leave(); }
-  else if(S.mode==='cret'){ if(k===' ') jump(); else if(k==='f'){ if(D.flashDead) msg('The flashlight is dying'); else { D.flashOn=!D.flashOn; R.sfx.ui(); } } else if(k==='t') msg('Time will not shift here'); else if(k>='1'&&k<='5') msg('Your records stayed in 1986'); }
+  else if(impl()&&impl().key) impl().key(k);
 }
 function jump(){ if(S.mode!=='cret'||TP.jy>0||TP.vy>0) return; TP.vy=4.4; TP.jy=.001; }
-function click(){ if(S.mode==='cret'&&!R.touch()&&!R.locked()) R.lock(); }
+function click(){ const im=impl(); if(im&&im.click) im.click(); }
 function frame(dt,inp){ if(!S.active) return; S.t+=dt; S.T+=dt;
   for(let i=0;i<Q.length;i++) if(Q[i].at<=S.T){ const f=Q[i].fn; Q.splice(i--,1); f(); if(!S.active) return; }
-  postMat.uniforms.time.value=S.T; postMat.uniforms.glitch.value=S.glitch; postMat.uniforms.lift.value=S.mode==='cret'||S.mode==='dead'||S.mode==='enter'?.012:0;
+  postMat.uniforms.time.value=S.T; postMat.uniforms.glitch.value=S.glitch; const inFall=S.mode==='fall'||S.mode==='choose'||S.mode==='go'; postMat.uniforms.lift.value=S.era&&!inFall?.012:0;
   S.glitch=Math.max(0,S.glitch-dt*1.6);
-  if(S.mode==='fall'||S.mode==='choose'||S.mode==='go') fallFrame(dt); else if(C&&S.mode) cretFrame(dt,inp);
+  if(inFall) fallFrame(dt); else if(S.mode&&impl()) impl().frame(dt,inp);
   // fade, caption typewriter, toast
   const st=dt*S.fadeRate; S.fade=S.fade<S.fadeTo?Math.min(S.fadeTo,S.fade+st):Math.max(S.fadeTo,S.fade-st); fadeEl.style.opacity=Math.round(S.fade*8)/8;
   if(S.cap||capEl.textContent){ S.capT+=dt; const n=Math.min(S.cap.length,Math.floor(S.capT*32)); const s=S.cap.slice(0,n); if(capEl.textContent!==s) capEl.textContent=s; }
@@ -738,4 +752,8 @@ function frame(dt,inp){ if(!S.active) return; S.t+=dt; S.T+=dt;
 }
 
 window.RiftTravel={begin,leave,key,click,frame,get active(){ return S.active; }};
+// the kit other eras (rift-<key>.js) build with: shared state, screen, audio and geometry helpers
+window.__RTK={R,S,P,reduce,cam,render,onScreen,setPal,toPal,fadeTo,after,caption,title,untitle,msg,objective,el,
+  A,pout,swell,snd,panOf,vol,tex,px,disc,sky,rnd,rr,reseed:n=>{ seed=n; },clamp,lerp,sstep,angLerp,V,
+  put,flush,tbox,hang,part,grp,eyeTex,leave,register:(k,o)=>{ ERA_IMPL[k]=o; }};
 })();
