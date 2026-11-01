@@ -1123,7 +1123,9 @@ function clipFrame(dt){ const c=clip, ZB=window.__W.ZB; c.t+=dt;
   P.x+=(0-P.x)*Math.min(1,dt*3); if(c.t>.35) P.z=Math.min(ZB+.45,P.z+dt*1.15); P.bob+=dt*6;
   if(P.z>ZB-.25) clipCut(); // the camera is in the doors
   glitch=Math.max(glitch,.4+Math.min(1.1,c.t*1.1));
-  if(P.z>=ZB+.4&&c.ready){ clip=null; travel.noclip(); setMarker(false); } }
+  // Marker off first, then hand over: once rift-back.js is cached the Backrooms start synchronously inside travel.noclip(),
+  // and setMarker(false) afterwards would paint the corridor palette and HUD back over them. travelling=true keeps the beds quiet.
+  if(P.z>=ZB+.4&&c.ready){ clip=null; travelling=true; setMarker(false); travel.noclip(); } }
 
 /* ================= LABELS ================= */
 const labels=$('#labels');
