@@ -155,7 +155,7 @@ function enter(){ if(!W) build(); layout((Math.random()*2147483647)|0); // never
   W.sc.add(cam); setPal(PAL_BACK); K.fallAudioStop();
   TP.x=cx(SPAWN.i)+.4; TP.z=cx(SPAWN.j)+.9; TP.acc=0; TP.bob=0; P.yaw=Math.PI*.25; P.pitch=-.05;
   FL.next=K.rr(18,35); FL.left=0; FL.lit=true; FL.shift=false; W.cover.visible=false;
-  document.body.classList.add('twalk'); $('#yearVal').textContent='----'; $('#year').classList.remove('past'); $('#shiftBtn').textContent='Leave rift'; }
+  document.body.classList.add('twalk'); $('#yearVal').textContent='----'; $('#year').classList.remove('past'); $('#shiftBtn').textContent='Leave backroom'; }
 // black and silent; a ballast ticks, ticks again, catches; the hum comes up with the light; you get up off the floor
 function arrive(){ enter(); S.mode='backEnter'; S.t=0; S.fade=1; fadeTo(1,0,'#000'); S.rise=reduce?1:0;
   after(1.4,sndB.tick); after(1.85,sndB.tick);

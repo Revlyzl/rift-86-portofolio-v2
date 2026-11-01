@@ -736,7 +736,7 @@ function begin(){ if(S.active) return; S.active=true; S.leaving=false; Q=[]; S.T
 // the other way in: through the shut lift in the corridor (index.html noclip). No fall, no choice: black, silence, then
 // the Backrooms (rift-back.js) take it from there. They are not a when, so they never show among the cracks.
 function noclip(){ if(S.active) return; S.active=true; S.leaving=false; Q=[]; S.T=0; S.glitch=0; S.mode=null;
-  R.setTravelling(true); R.unlock(); document.body.classList.add('travel'); $('#shiftBtn').textContent='Leave rift';
+  R.setTravelling(true); R.unlock(); document.body.classList.add('travel'); $('#shiftBtn').textContent='Leave backroom';
   fadeEl.style.transition='none'; fadeTo(1,0,'#000'); S.fade=1; fadeEl.style.opacity=1;
   const go=()=>{ if(!S.active||S.leaving) return; S.era='back'; ERA_IMPL.back.arrive(); }; if(ERA_IMPL.back) go(); else loadEra('back',go); }
 function leave(){ if(!S.active||S.leaving) return; S.leaving=true; skipEl.hidden=true; pickEls.forEach(b=>{ b.hidden=true; });
