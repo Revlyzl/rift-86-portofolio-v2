@@ -191,8 +191,78 @@ function buildMed(){ K.reseed(1350714);
   // the rift you came through, behind you at the end of the lane
   const rift=K.crack({h:2.6,w:.9,seed:11,edge:0x7da597}); rift.g.position.set(RIFTP.x,ghM(RIFTP.x,RIFTP.z)+1.4,RIFTP.z); sc.add(rift.g);
   const riftL=new THREE.PointLight(0x7da597,.5,8,2); riftL.position.set(RIFTP.x,ghM(RIFTP.x,RIFTP.z)+1.6,RIFTP.z-.6); sc.add(riftL);
-  W={sc,hemi,key,win,winL,rift,riftL,doorPivot,clouds,skyM};
+  // the lightning's own light, moved to wherever each strike is
+  const boltL=new THREE.DirectionalLight(0xd8e4f0,0); sc.add(boltL);
+  W={sc,hemi,key,bolt:boltL,win,winL,rift,riftL,doorPivot,clouds,skyM,fogC:new THREE.Color(0x1b2630),fogF:new THREE.Color(0x7f98ad)};
+  buildRain(sc);
 }
+
+/* ================= THE STORM =================
+   Rain that follows the camera, wind, and lightning: the only real light. A strike is a double (or triple) pulse with
+   an afterglow; with reduced motion it is one soft, dimmer swell and the tells it reveals are held longer (see HOLD).
+   Anything that should only be seen by lightning subscribes with onFlash(fn). */
+const ST={level:.6,flash:0,since:99,pulses:[],next:5,az:0,big:false,hooks:[]};
+const RAIN_N=1800, RAIN_R=15, RAIN_H=13, HOLD=reduce?.45:0;
+const onFlash=fn=>ST.hooks.push(fn);
+function setStorm(level){ ST.level=clamp(level,0,1); rainAudio(.25+ST.level*.55); }
+let rain=null;
+function buildRain(sc){ const pos=new Float32Array(RAIN_N*6), drops=[];
+  for(let i=0;i<RAIN_N;i++) drops.push({x:rr(-RAIN_R,RAIN_R),y:rr(0,RAIN_H),z:rr(-RAIN_R,RAIN_R),v:rr(13,18)});
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const m=new THREE.LineBasicMaterial({color:0x7f98ad,transparent:true,opacity:.34,depthWrite:false});
+  const l=new THREE.LineSegments(g,m); l.frustumCulled=false; sc.add(l); rain={l,g,m,pos,drops}; }
+function rainFrame(dt){ const n=Math.round(RAIN_N*(.3+.7*ST.level)), wx=-.22-.25*ST.level, wz=.08, len=.45+.35*ST.level, p=rain.pos;
+  rain.l.position.set(cam.position.x,cam.position.y-RAIN_H*.55,cam.position.z); rain.g.setDrawRange(0,n*2);
+  for(let i=0;i<n;i++){ const d=rain.drops[i]; d.y-=d.v*dt; d.x+=wx*d.v*dt*.25; d.z+=wz*d.v*dt*.25;
+    if(d.y<0){ d.y+=RAIN_H; d.x=rr(-RAIN_R,RAIN_R); d.z=rr(-RAIN_R,RAIN_R); }
+    if(d.x<-RAIN_R) d.x+=RAIN_R*2; if(d.z>RAIN_R) d.z-=RAIN_R*2;
+    const o=i*6; p[o]=d.x; p[o+1]=d.y; p[o+2]=d.z; p[o+3]=d.x-wx*len; p[o+4]=d.y+len; p[o+5]=d.z-wz*len; }
+  rain.g.attributes.position.needsUpdate=true; rain.m.opacity=.3+ST.flash*.5; }
+
+let bolt=null;
+function boltGeo(){ const pts=[]; let x=0,y=70,z=0; while(y>0){ const nx=x+rr(-4,4), ny=y-rr(4,9), nz=z+rr(-2,2); pts.push(x,y,z,nx,Math.max(0,ny),nz);
+    if(rnd()<.25){ const bx=nx+rr(-8,8), by=ny-rr(5,12); pts.push(nx,ny,nz,bx,Math.max(0,by),nz+rr(-3,3)); } x=nx; y=ny; z=nz; }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3)); return g; }
+function strike(force){ const big=force||rnd()<(.35+.3*ST.level); ST.big=big; ST.since=0; ST.az=rnd()*6.283;
+  const pk=(big?1:.6)*(reduce?.4:1);
+  ST.pulses=reduce?[{at:0,peak:pk,dur:.9,soft:true}]:
+    [{at:0,peak:pk,dur:.09},{at:rr(.11,.18),peak:pk*rr(.6,.9),dur:.08}].concat(big&&rnd()<.6?[{at:rr(.3,.45),peak:pk*rr(.4,.7),dur:.12}]:[]);
+  const dist=big?rr(.2,1.2):rr(1.2,3);   // km, roughly: close strikes are the big ones
+  if(big){ if(bolt){ W.sc.remove(bolt); bolt.geometry.dispose(); }
+    bolt=new THREE.LineSegments(boltGeo(),new THREE.LineBasicMaterial({color:0xe3ecf1,fog:false,transparent:true}));
+    const r=rr(90,130); bolt.position.set(Math.cos(ST.az)*r,ghM(Math.cos(ST.az)*r,Math.sin(ST.az)*r),Math.sin(ST.az)*r); W.sc.add(bolt); }
+  W.bolt.position.set(Math.cos(ST.az)*60,80,Math.sin(ST.az)*60);
+  const pan=K.panOf(Math.cos(ST.az)*100,Math.sin(ST.az)*100);
+  after(dist*.9+rr(.1,.4),()=>thunder(dist,pan));
+  for(const fn of ST.hooks) fn(big); }
+function flashAt(t){ let f=0; for(const p of ST.pulses){ const u=(t-p.at)/p.dur; if(u<0) continue;
+    const v=p.soft?(u<.3?u/.3:Math.max(0,1-(u-.3)/.7)):(u<1?1-u*.35:Math.max(0,.65-(u-1)*1.6)); if(v*p.peak>f) f=v*p.peak; }
+  return f; }
+function stormFrame(dt){ ST.since+=dt; ST.next-=dt;
+  if(ST.next<=0){ strike(); ST.next=lerp(17,5,ST.level)*rr(.6,1.4); }
+  const f=flashAt(ST.since); ST.flash=f;
+  W.hemi.intensity=.55+f*2.6; W.bolt.intensity=f*2.2; W.key.intensity=.35*(1-f*.5);
+  W.skyM.material.color.setScalar(1+f*3); W.clouds.material.opacity=1-f*.4;
+  W.sc.fog.color.copy(W.fogC).lerp(W.fogF,clamp(f,0,1)); W.sc.background.copy(W.sc.fog.color);
+  if(bolt) bolt.visible=ST.big&&f>.25;
+  rainFrame(dt); }
+
+// audio: steady rain (hiss and a lower patter), gusting wind, thunder placed where the strike was
+let rainA=null;
+function rainAudio(level){ const a=K.A(); if(!a) return; const {ac,master,nb}=a;
+  if(!rainA){ const out=ac.createGain(); out.gain.value=0; out.connect(master); const src=[];
+    const loop=(type,f,q,lv,rate)=>{ const s=ac.createBufferSource(); s.buffer=nb; s.loop=true; s.playbackRate.value=rate||1; const bf=ac.createBiquadFilter(); bf.type=type; bf.frequency.value=f; bf.Q.value=q;
+      const g=ac.createGain(); g.gain.value=lv; s.connect(bf).connect(g).connect(out); s.start(); src.push(s); return g; };
+    loop('highpass',2400,.5,.22); loop('bandpass',900,.6,.2,.8); loop('lowpass',300,.7,.18,.6);
+    const wind=loop('bandpass',420,1.4,.05,.5), wl=ac.createOscillator(), wlg=ac.createGain(); wl.frequency.value=.07; wlg.gain.value=.05; wl.connect(wlg).connect(wind.gain); wl.start(); src.push(wl);
+    rainA={out,src}; }
+  rainA.out.gain.setTargetAtTime(level,ac.currentTime,level?1.4:.3); }
+function rainAudioStop(){ if(!rainA) return; const r=rainA; rainA=null; const a=K.A(); r.out.gain.setTargetAtTime(0,a.ac.currentTime,.4);
+  setTimeout(()=>{ try{ r.src.forEach(s=>s.stop()); r.out.disconnect(); }catch(e){} },2500); }
+function thunder(dist,pan){ const a=K.A(); if(!a||!S.active||S.era!=='med') return; const t=a.ac.currentTime, near=clamp(1-dist/3,0,1), d=K.pout(pan*.7,.55+near*.5);
+  if(near>.55) a.noise(t,.3,'highpass',1500,.7,.55*near,.25,d);                     // the crack of a close one
+  a.noise(t,4+dist,'lowpass',140+near*120,.8,.85,3.5+dist,d); a.noise(t+.25,3,'lowpass',80,.7,.6,3+dist*.5,d);
+  a.tone(t,'sine',46,28,.3+near*.25,.08,3,d); }
 
 /* ================= THE PLAYER ================= */
 const TP={x:0,z:0,bob:0,acc:0};
@@ -203,7 +273,7 @@ function walk(dt,inp){ const m=inp.m; if(m<=.05) return; const sp=(inp.run?3.4:1
 
 /* ================= ERA LIFECYCLE ================= */
 function enterMed(){ if(!W) buildMed();
-  W.sc.add(cam); setPal(PAL_STORM); K.fallAudioStop();
+  W.sc.add(cam); setPal(PAL_STORM); K.fallAudioStop(); ST.next=rr(3,6); ST.since=99; setStorm(.6);
   TP.x=SPAWN.x; TP.z=SPAWN.z; TP.acc=0; P.yaw=0; P.pitch=.05;
   document.body.classList.add('twalk','tmed'); $('#yearVal').textContent='AD 1350'; $('#year').classList.add('past'); $('#shiftBtn').textContent='Leave rift'; }
 function arrive(){ enterMed(); S.mode='medEnter'; S.t=0; S.fade=1; fadeTo(1,0,'#000'); snd.thud(); R.sfx.shift();
@@ -214,15 +284,15 @@ function frame(dt,inp){
   if(S.mode==='med') walk(dt,inp);
   const bob=reduce?0:Math.sin(TP.bob)*.03;
   cam.position.set(TP.x,ghM(TP.x,TP.z)+1.6+bob,TP.z); cam.rotation.set(P.pitch,P.yaw,0); cam.updateMatrixWorld();
-  W.clouds.rotation.y+=dt*.004;
+  W.clouds.rotation.y+=dt*.004; stormFrame(dt);
   W.rift.em.opacity=.3+Math.random()*.1; K.shimmer(W.rift,S.T,.4); W.riftL.intensity=.45+Math.sin(S.T*9)*.12;
   W.winL.intensity=1.05+Math.sin(S.T*7.3)*.05+Math.sin(S.T*13.1)*.04;   // firelight behind the glass
   K.render(W.sc); }
 function key(k){ if(S.mode!=='med') return; if(k==='t') msg('Time will not shift here'); else if(k>='1'&&k<='5') msg('Your records stayed in 1986'); }
 function click(){ if(S.mode==='med'&&!R.touch()&&!R.locked()) R.lock(); }
-function exit(){ document.body.classList.remove('tmed'); }
+function exit(){ document.body.classList.remove('tmed'); rainAudioStop(); ST.flash=0; }
 const sty=document.createElement('style'); sty.textContent='body.tmed #tJump{display:none!important}'; document.head.appendChild(sty);
 
 K.register('med',{arrive,frame,key,click,exit});
-K.medDebug={get TP(){ return TP; },get W(){ return W; },ghM,blockedM,HOUSE,BARN,PEN,PORCH,DOOR,BARN_DOOR,PEN_GATE,RIDGE};
+K.medDebug={get TP(){ return TP; },get W(){ return W; },ST,strike,setStorm,onFlash,HOLD,ghM,blockedM,HOUSE,BARN,PEN,PORCH,DOOR,BARN_DOOR,PEN_GATE,RIDGE};
 })(typeof window!=='undefined'?window:globalThis);
