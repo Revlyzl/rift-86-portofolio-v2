@@ -783,6 +783,8 @@ const shutM=new THREE.MeshPhongMaterial({color:0x2e2622,flatShading:true});
 for(const d of DOORS){ const s2=Math.sign(d.x); box(.06,DH-.02,DW-.04,d.x,DH/2,d.z,shutM,{tag:'M'}); box(.06,.06,.06,d.x-s2*.05,1.0,d.z+DW/2-.2,M.metal,{tag:'M'});
   COLS.push({x0:d.x-.15,x1:d.x+.15,z0:d.z-DW/2,z1:d.z+DW/2,t:'M'}); }
 box(1.4,2.2,.05,0,1.1,ZB-.17,shutM,{tag:'M'});
+// the shut lift answers only while the Marker is here (see pick): press into it and you slip through
+const liftHit=box(1.4,2.2,.3,0,1.1,ZB-.2,new THREE.MeshBasicMaterial({visible:false})); liftHit.userData.key='lift'; INTER.push(liftHit);
 
 SPOTS.push({key:'rift',name:'Rift',sub:'Step through',pos:new THREE.Vector3(0,2.95,RZ),kind:'rift',range:14});
 
@@ -921,7 +923,7 @@ var dust=new THREE.Points(dg,dustM); scene.add(dust);
 
 /* ---------- export for the loop ---------- */
 var winTx={p:tx.winP,f:tx.winF};
-window.__W={skyM,winTx,RZ,MZ,mk,markM,markL,mkCrack,LAMPS,R,riftBits,riftOuter,riftCore,riftL,tvX,tvT,tvS,hemi,winL,flash,dustM,dust,dbase,dpos,dg,tvLight};
+window.__W={skyM,winTx,RZ,MZ,ZB,mk,markM,markL,mkCrack,LAMPS,R,riftBits,riftOuter,riftCore,riftL,tvX,tvT,tvS,hemi,winL,flash,dustM,dust,dbase,dpos,dg,tvLight};
 }
 
 /* ================= POST: low-res, palette, dither, scanlines ================= */
@@ -1034,6 +1036,7 @@ function blocked(x,z){ const r=.28; for(const c of COLS){ if(c.t==='M'&&!markerO
 addEventListener('keydown',e=>{ if(e.target.closest&&e.target.closest('input,textarea')) return; const k=e.key.toLowerCase(); keys[k]=true;
   if(inTravel()){ if(!e.repeat) travel.key(k,e); if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault(); return; }
   if(k==='escape'){ if(!$('#lb').hidden) closeLb(); else closePanel(); }
+  if(clip) return;
   if(started && !e.repeat){ if(k==='t'){ toggleEra(); } if(k==='m') tmpMarker(); /* TEMP */ if(k==='f'){ flashOn=!flashOn; applyEra(era); sfx.ui(); } if(['1','2','3','4','5'].includes(k)) openPanel(['about','experience','skills','projects','contact'][+k-1]); if(k==='e'&&aimKey&&!panelOpen) act(aimKey); }
   if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault(); });
 addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
@@ -1086,9 +1089,10 @@ function moveStick(t){ let dx=(t.clientX-sbx)/SR, dy=(t.clientY-sby)/SR; const m
 const ray=ok3d?new THREE.Raycaster():null; const v2=ok3d?new THREE.Vector2():null;
 function pick(nx,ny){ if(!ok3d||!started||panelOpen) return null; v2.set(nx,-ny); ray.setFromCamera(v2,camera); ray.far=8;
   const vis=INTER.filter(o=>visibleDeep(o)); const hits=ray.intersectObjects(vis.concat(OCC),false);
-  const k=hits.length?hits[0].object.userData.key:null; if(markerOn&&k!=='rift'&&k!=='marker') return null; return k||null; }
+  const k=hits.length?hits[0].object.userData.key:null; if(clip) return null; if(k==='lift') return markerOn?k:null;
+  if(markerOn&&k!=='rift'&&k!=='marker') return null; return k||null; }
 function visibleDeep(o){ while(o){ if(!o.visible) return false; o=o.parent; } return true; }
-function act(k){ if(k==='rift') enterRift(); else if(k==='marker'){ glitch=1; sfx.whisper(); } else openPanel(k); }
+function act(k){ if(clip) return; if(k==='lift') noclip(); else if(k==='rift') enterRift(); else if(k==='marker'){ glitch=1; sfx.whisper(); } else openPanel(k); }
 
 /* ================= RIFT TRAVEL =================
    The fall through time, the choice of era and the eras themselves live in rift-travel.js, fetched on the first step
@@ -1097,11 +1101,29 @@ let travel=null, travelLoading=false;
 const inTravel=()=>!!(travel&&travel.active);
 function enterRift(){ if(!ok3d||inTravel()||travelLoading) return; if(!started) start(); if(markerOn) setMarker(false);
   glitch=1; sfx.shift(); const s=$('#shift'); s.style.transition='none'; s.style.opacity=reduce?.2:.7; requestAnimationFrame(()=>{ s.style.transition='opacity .8s steps(6)'; s.style.opacity=0; });
-  if(travel){ travel.begin(); return; }
+  loadTravel(()=>travel.begin(),toggleEra); } // offline or blocked: the rift falls back to a plain era shift
+function loadTravel(ok,fail){ if(travel){ ok(); return; } if(travelLoading) return;
   travelLoading=true; const sc=document.createElement('script'); sc.src='rift-travel.js';
-  sc.onload=()=>{ travelLoading=false; travel=window.RiftTravel||null; if(travel) travel.begin(); else toggleEra(); };
-  sc.onerror=()=>{ travelLoading=false; toggleEra(); }; // offline or blocked: the rift falls back to a plain era shift
+  sc.onload=()=>{ travelLoading=false; travel=window.RiftTravel||null; if(travel) ok(); else fail(); };
+  sc.onerror=()=>{ travelLoading=false; fail(); };
   document.head.appendChild(sc); }
+/* the noclip: interact with the shut lift while the Marker is here and you walk into the doors, then through them.
+   The Marker's sound dies the instant you touch metal; the picture tears; on the far side of the wall, rift-travel.js
+   takes over in the dark (travel.noclip) and the Backrooms (rift-back.js) fade in. Never hinted at anywhere. */
+let clip=null;
+function noclip(){ if(!ok3d||clip||inTravel()||!markerOn) return; if(panelOpen) closePanel();
+  clip={t:0,cut:false,ready:!!travel}; aimKey=null; updateAim();
+  if(!travel) loadTravel(()=>{ if(clip) clip.ready=true; },()=>{ clip=null; P.z=window.__W.ZB-.7; });
+  if(reduce){ clipCut(); P.z=window.__W.ZB+.4; } }
+// hard cut, one frame: no fade on the Marker's rumble, voices and noise
+function clipCut(){ if(clip.cut) return; clip.cut=true; if(!ac) return; const t=ac.currentTime;
+  for(const g of [rumble,mkWhG,mkNzG]) if(g){ g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(0,t); } }
+function clipFrame(dt){ const c=clip, ZB=window.__W.ZB; c.t+=dt;
+  const d=((Math.PI-P.yaw+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI; P.yaw+=d*Math.min(1,dt*5); P.pitch+=(0-P.pitch)*Math.min(1,dt*5);
+  P.x+=(0-P.x)*Math.min(1,dt*3); if(c.t>.35) P.z=Math.min(ZB+.45,P.z+dt*1.15); P.bob+=dt*6;
+  if(P.z>ZB-.25) clipCut(); // the camera is in the doors
+  glitch=Math.max(glitch,.4+Math.min(1.1,c.t*1.1));
+  if(P.z>=ZB+.4&&c.ready){ clip=null; travel.noclip(); setMarker(false); } }
 
 /* ================= LABELS ================= */
 const labels=$('#labels');
@@ -1115,7 +1137,7 @@ const TITLES={about:'Apt 12 · Resident card',experience:'Lobby · Work log',ski
 const AIMN={about:['Resident card','About me'],experience:['Notice board','Work log'],skills:['Workshop wall','Skills'],projects:['TV + tapes','Projects'],contact:['Phone + radio','Contact'],marker:['Something old','make us whole']};
 function updateAim(){ const el=$('#aim'); const xh=$('#xhair'); const act2=touchUI?'Tap to':'Click or E to';
   if(!started||panelOpen){ el.hidden=true; xh.classList.remove('on'); return; }
-  if(aimKey){ const n=aimKey==='rift'?['Rift',marked?'answer it':'step through']:AIMN[aimKey];
+  if(aimKey&&aimKey!=='lift'){ const n=aimKey==='rift'?['Rift',marked?'answer it':'step through']:AIMN[aimKey];
     el.className='aim'; el.innerHTML=`${n[0]}<small>${act2} ${aimKey==='rift'?n[1]:'inspect · '+n[1]}</small>`; el.hidden=false; xh.classList.add('on'); }
   else if(!touchUI&&!locked&&!lockFailed){ el.className='aim idle'; el.innerHTML='Click to look around<small>Esc frees the cursor</small>'; el.hidden=false; xh.classList.remove('on'); }
   else { el.hidden=true; xh.classList.remove('on'); } }
@@ -1131,7 +1153,7 @@ $('#copy').addEventListener('click',()=>{ const btn=$('#copy'), txt=$('#addr').t
 // TEMP: remove before release. Fires an automatic glitch now; if the monolith is away, this one counts as the 10th.
 function tmpMarker(){ if(!started) start(); if(!markerOn) glimpseN=Math.ceil((glimpseN+1)/10)*10-1; nextGlimpse=0; if(panelOpen) closePanel(); }
 $('#tmpMarker').addEventListener('click',tmpMarker); // TEMP (also the M key)
-$('#shiftBtn').addEventListener('click',()=>{ if(!started) start(); if(inTravel()){ travel.leave(); return; } toggleEra(); });
+$('#shiftBtn').addEventListener('click',()=>{ if(clip) return; if(!started) start(); if(inTravel()){ travel.leave(); return; } toggleEra(); });
 $('#sound').addEventListener('click',()=>{ soundOn=!soundOn; $('#sound').setAttribute('aria-pressed',String(soundOn)); $('#sound').textContent=soundOn?'Sound':'Muted';
   if(!ac) initAudio(); if(ac){ if(ac.state==='suspended') ac.resume(); master.gain.setTargetAtTime(soundOn?1:0,ac.currentTime,.05); } });
 
@@ -1236,7 +1258,8 @@ function loop(now){
   const m=Math.hypot(f,s); let moving=false;
   const run=keys['shift']||(sId!==null&&Math.hypot(sx,sy)>RUN_AT);
   if(inTravel()){ travel.frame(dt,{f,s,m,run}); return; }
-  if(started && m>.05 && !panelOpen && !mkEnd){ const sp=(run?3.8:2.2)*Math.min(1,m)/Math.max(1,m); const yaw=P.yaw;
+  if(clip) clipFrame(dt);
+  else if(started && m>.05 && !panelOpen && !mkEnd){ const sp=(run?3.8:2.2)*Math.min(1,m)/Math.max(1,m); const yaw=P.yaw;
     const vx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)*sp*dt, vz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)*sp*dt;
     if(!blocked(P.x+vx,P.z)) P.x+=vx; if(!blocked(P.x,P.z+vz)) P.z+=vz; moving=true;
     P.stepAcc+=Math.hypot(vx,vz); if(P.stepAcc>(run?1.0:.78)){ P.stepAcc=0; sfx.step(); } }
@@ -1272,7 +1295,7 @@ function loop(now){
   if(started){
     if(era!=='past'){ nextCreak-=dt; if(nextCreak<=0){ nextCreak=7+Math.random()*9; Math.random()<.3?sfx.thump():sfx.creak(); }
       nextDrip-=dt; if(nextDrip<=0){ nextDrip=1.5+Math.random()*4; sfx.drip(); } }
-    if(!panelOpen){ nextGlimpse-=dt; if(nextGlimpse<=0){ nextGlimpse=22+Math.random()*22; glimpseN++; if(markerOn) setMarker(false); else if(glimpseN%10===0) setMarker(true); glimpseT=reduce?0:.22; if(glimpseT){ applyEra(era==='past'?'future':'past'); glitch=Math.max(glitch,.7); sfx.glimpse(); } } }
+    if(!panelOpen&&!clip){ nextGlimpse-=dt; if(nextGlimpse<=0){ nextGlimpse=22+Math.random()*22; glimpseN++; if(markerOn) setMarker(false); else if(glimpseN%10===0) setMarker(true); glimpseT=reduce?0:.22; if(glimpseT){ applyEra(era==='past'?'future':'past'); glitch=Math.max(glitch,.7); sfx.glimpse(); } } }
   }
   if(glimpseT>0){ glimpseT-=dt; if(glimpseT<=0){ glimpseT=0; applyEra(era); glitch=Math.max(glitch,.5); } }
   glitch=Math.max(0,glitch-dt*1.8);
@@ -1290,14 +1313,14 @@ function loop(now){
     s.el.classList.toggle('hl',hovKey===s.key&&s.kind!=='door'); }
 
   if(markerOn){ // an earthquake that never stops: a rolling tremor, aftershocks on top, and the closer you get the more the picture tears
-    jolt=Math.max(0,jolt-dt*1.6); nextJolt-=dt; if(nextJolt<=0){ nextJolt=1.5+Math.random()*3.5; jolt=.6+Math.random()*.4; sfx.thump(); }
+    jolt=Math.max(0,jolt-dt*1.6); nextJolt-=dt; if(nextJolt<=0&&!clip){ nextJolt=1.5+Math.random()*3.5; jolt=.6+Math.random()*.4; sfx.thump(); }
     const roll=.5+.25*Math.sin(tAcc*.9)+.25*Math.sin(tAcc*2.3+1), q=Math.min(1,roll*.55+jolt*.7); // 0..1 shaking right now
     const md=Math.hypot(P.x,P.z-W.MZ), far=P.z<W.MZ?MK_FAR_RIFT:MK_FAR, near=Math.max(0,Math.min(1,(far-md)/(far-MK_NEAR)));
     if(mkEnd>0){ mkEnd-=dt; if(mkEnd<=0){ mkEnd=0; banishMarker(); } }
     else if(started&&!panelOpen&&md<MK_NEAR) mkEnding();
     if(markerOn){
     if(mkEnd) glitch=Math.max(glitch,reduce?.6:2.1);
-    else if(mkWhG&&!travelling) mkWhG.gain.setTargetAtTime(MKW_MIN+(MKW_MAX-MKW_MIN)*Math.pow(near,1.6),ac.currentTime,.3);
+    else if(mkWhG&&!travelling&&!clip) mkWhG.gain.setTargetAtTime(MKW_MIN+(MKW_MAX-MKW_MIN)*Math.pow(near,1.6),ac.currentTime,.3);
     if(started&&!panelOpen&&!mkEnd){ glitch=Math.max(glitch,(reduce?.25:1.7)*near*near+(!reduce&&Math.random()<near*.25?near*.9:0)); }
     scene.fog.color.setRGB(.15+q*.06,.015,.01); scene.fog.density=.07;
     W.hemi.color.setHex(0x9a2a1a); W.hemi.groundColor.setHex(0x120303); W.hemi.intensity=.3+q*.12;
@@ -1308,7 +1331,7 @@ function loop(now){
     W.markL.intensity=1.2+near*1.5; W.markM.emissiveIntensity=.9+near*1.2; W.mkCrack.opacity=.6+jolt*.4;
     if(!reduce){ const k=.022+q*.085; camera.position.x+=(Math.sin(tAcc*11.3)*.6+(Math.random()-.5))*k; camera.position.y+=(Math.sin(tAcc*14.7)*.5+(Math.random()-.5))*k*.9;
       camera.rotation.z+=(Math.sin(tAcc*8.1)*.6+(Math.random()-.5))*k*.45; camera.rotation.x+=(Math.random()-.5)*k*.28; camera.rotation.y+=(Math.random()-.5)*k*.16; }
-    if(started&&!panelOpen&&!mkEnd){ nextWhisper-=dt; if(nextWhisper<=0){ nextWhisper=5+Math.random()*5; sfx.whisper(); }
+    if(started&&!panelOpen&&!mkEnd&&!clip){ nextWhisper-=dt; if(nextWhisper<=0){ nextWhisper=5+Math.random()*5; sfx.whisper(); }
       if(!reduce){ nextSub-=dt; if(nextSub<=0){ nextSub=6+Math.random()*7; mkFlash(MK_SUB[(Math.random()*MK_SUB.length)|0],250); glitch=Math.max(glitch,.5); } } } } }
   postMat.uniforms.time.value=tAcc; postMat.uniforms.glitch.value=glitch; postMat.uniforms.lift.value=visEra==='past'?0:.02;
   renderer.setRenderTarget(rt); renderer.render(scene,camera); renderer.setRenderTarget(null); renderer.render(postScene,postCam);
@@ -1322,8 +1345,8 @@ window.__R86={renderer,rt,postMat,postScene,postCam,P,keys,reduce,PAL,sfx,
   touch:()=>touchUI, locked:()=>locked, lock, marked:()=>marked,
   unlock(){ if(locked){ try{ document.exitPointerLock(); }catch(e){} } },
   setTravelling(on){ travelling=on; setBeds(); if(on){ aimKey=null; for(const s of SPOTS){ s.vis=false; s.el.classList.remove('on'); } } },
-  // back out of the rift, standing just in front of it and facing down the hall
-  home(){ if(marked) mark(false); P.x=0; P.z=window.__W.RZ+2.4; P.yaw=Math.PI; P.pitch=0; P.bob=0; eraHud(); applyEra(era); glitch=1; sfx.shift(); updateAim(); }
+  // back out of the rift, standing just in front of it and facing down the hall (or out of the lift, if you came in through it)
+  home(at){ if(marked) mark(false); P.x=0; if(at==='lift'){ P.z=window.__W.ZB-.7; P.yaw=0; } else { P.z=window.__W.RZ+2.4; P.yaw=Math.PI; } P.pitch=0; P.bob=0; eraHud(); applyEra(era); glitch=1; sfx.shift(); updateAim(); }
 };
 requestAnimationFrame(loop);
 })();
