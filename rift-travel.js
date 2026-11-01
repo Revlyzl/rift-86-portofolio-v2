@@ -150,12 +150,17 @@ const PREV={
     g.beginPath(); g.moveTo(w,0); g.lineTo(w-8,0); g.lineTo(w-5,34); g.lineTo(w-11,h); g.lineTo(w,h); g.fill();
     for(let i=0;i<9;i++){ const x=4+i*5+rnd()*3, y=h-10-rnd()*16; g.fillStyle='#0a130d'; g.fillRect(x,y,2,h-y); for(let k=0;k<5;k++) g.fillRect(x-4+k*2,y-1+Math.abs(k-2),2,2); }
     g.fillStyle='#04060a'; g.fillRect(0,h-9,w,9); px(g,'#ff2a1a',15,h-14); px(g,'#ff2a1a',17,h-14); }),
-  med:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#1d2630','#6e3720','#b5622b','#f0a43c']); disc(g,'#fff3d0',34,46,5);
-    g.fillStyle='#1d2630'; g.beginPath(); g.moveTo(0,h); g.lineTo(0,58); g.quadraticCurveTo(24,48,w,60); g.lineTo(w,h); g.fill();
-    g.fillStyle='#0f141a'; g.fillRect(10,40,26,20); g.fillRect(8,30,7,30); g.fillRect(31,26,7,34); g.fillRect(20,34,6,26);
-    for(const x of [8,11,14,31,34,37,20,23]) g.fillRect(x,x>28?24:(x>18?32:28),2,2);
-    px(g,'#f0a43c',33,34); px(g,'#f0a43c',11,38); px(g,'#f0a43c',22,44); px(g,'#8a2f26',33,20,1,6); px(g,'#8a2f26',34,20,3,2);
-    for(let i=0;i<4;i++){ const x=6+rnd()*36, y=8+rnd()*16; px(g,'#0f141a',x,y,3,1); px(g,'#0f141a',x+1,y-1); } }),
+  // a storm over a farm: low cloud, a far bolt, one lit window, and on the ridge something black with pale eyes
+  med:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#05060a','#0f141a','#1d2630','#3a4a58']);
+    for(let i=0;i<12;i++) px(g,i%2?'#1d2630':'#3a4a58',rnd()*w-4,2+rnd()*22,6+rnd()*9,2);
+    let bx=35; for(let y=4;y<40;y+=3){ const nx=bx+((rnd()*5|0)-2); px(g,'#e3ecf1',Math.min(bx,nx),y,Math.abs(nx-bx)+1,1); px(g,'#e3ecf1',nx,y,1,3); bx=nx; }
+    g.fillStyle='#0f141a'; g.beginPath(); g.moveTo(0,h); g.lineTo(0,50); g.quadraticCurveTo(16,43,30,48); g.quadraticCurveTo(40,51,w,47); g.lineTo(w,h); g.fill();
+    g.fillStyle='#05060a'; g.fillRect(9,43,5,2); g.fillRect(9,45,1,4); g.fillRect(13,45,1,4); g.fillRect(13,40,2,3); g.fillRect(13,39,1,1); g.fillRect(15,39,1,1); g.fillRect(8,44,1,3);
+    px(g,'#e3ecf1',13,41); px(g,'#e3ecf1',14,41);
+    g.fillStyle='#05060a'; g.beginPath(); g.moveTo(20,60); g.lineTo(31,52); g.lineTo(42,60); g.fill(); g.fillRect(22,60,18,10); g.fillRect(36,51,3,6);
+    px(g,'#f0a43c',33,63,3,3); px(g,'#05060a',34,63,1,3);
+    g.fillStyle='#05060a'; g.fillRect(0,70,w,10); g.fillStyle='#3a4a58'; g.beginPath(); g.moveTo(14,h); g.lineTo(22,70); g.lineTo(25,70); g.lineTo(26,h); g.fill();
+    for(let i=0;i<46;i++) px(g,'#3a4a58',rnd()*w,rnd()*h,1,2); }),
   atom:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#3a4a58','#9ea198','#f0a43c','#b5622b']);
     g.fillStyle='#b5622b'; g.fillRect(20,32,8,32); g.fillStyle='#6e3720'; g.fillRect(17,44,14,3);
     for(const [x,y,r,c] of [[24,24,12,'#6e3720'],[15,25,7,'#b5622b'],[33,25,7,'#b5622b'],[24,21,9,'#f0a43c'],[24,22,5,'#fff3d0'],[18,19,4,'#f0a43c'],[30,19,4,'#f0a43c']]) disc(g,c,x,y,r);
