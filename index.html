@@ -240,7 +240,8 @@ a.pbtn{display:inline-block;text-decoration:none;color:var(--ink)}
     <div class="year pbox" id="year">TIMELINE<b id="yearVal">20??</b></div>
     <button class="pbtn" id="shiftBtn" type="button" title="Shift time (T)">Shift time</button>
     <button class="pbtn" id="sound" type="button" aria-pressed="true">Sound</button>
-    <button class="pbtn" id="tmpMarker" type="button" title="TEMP: force the next glitch to be the 10th">Marker</button> TEMP: remove before release
+    <button class="pbtn" id="tmpMarker" type="button" title="TEMP: force the next glitch to be the 10th">Marker</button>
+    <button class="pbtn" id="tmpConv" type="button" title="TEMP: go straight to the station (Convergence)">Station</button> TEMP: remove before release
 
   </div>
 </header>
@@ -1016,7 +1017,10 @@ function setMarker(on){ if(!ok3d) return; const W=window.__W; markerOn=on; glitc
   if(on){ sfx.whisper(); sfx.thump(); nextWhisper=4; nextSub=5+Math.random()*4; jolt=1; nextJolt=2; if(!reduce) mkFlash('MAKE US WHOLE',1300); }
   if(started) updateAim(); }
 // too close: you're held in place, the voices drop out, it begs, and only then does the rift shift it away
-function mkEnding(){ const d=playHelp(); mkEnd=Math.max(.4,d+.1); if(mkWhG) mkWhG.gain.setTargetAtTime(0,ac.currentTime,.05); if(!reduce) mkFlash('HELP US',Math.min(300,mkEnd*1000)); }
+// after the station's fracture (rift-conv.js) there is no voice left to borrow: silence, and a question
+const fractured=()=>{ try{ return localStorage.getItem('r86.fracture')==='1'; }catch(e){ return false; } };
+function mkEnding(){ if(fractured()){ mkEnd=1.7; if(mkWhG) mkWhG.gain.setTargetAtTime(0,ac.currentTime,.05); mkFlash('WHO ARE YOU',1300); return; }
+  const d=playHelp(); mkEnd=Math.max(.4,d+.1); if(mkWhG) mkWhG.gain.setTargetAtTime(0,ac.currentTime,.05); if(!reduce) mkFlash('HELP US',Math.min(300,mkEnd*1000)); }
 function banishMarker(){ setMarker(false); glitch=reduce?1:2.4; sfx.shift(); sfx.glimpse();
   const s=$('#shift'); s.style.transition='none'; s.style.opacity=reduce?.2:.85; requestAnimationFrame(()=>{ s.style.transition='opacity .9s steps(6)'; s.style.opacity=0; }); }
 // crossover easter egg: shift time seven times inside five seconds and the rift starts listening back
@@ -1155,7 +1159,11 @@ $('#copy').addEventListener('click',()=>{ const btn=$('#copy'), txt=$('#addr').t
 // TEMP: remove before release. Fires an automatic glitch now; if the monolith is away, this one counts as the 10th.
 function tmpMarker(){ if(!started) start(); if(!markerOn) glimpseN=Math.ceil((glimpseN+1)/10)*10-1; nextGlimpse=0; if(panelOpen) closePanel(); }
 $('#tmpMarker').addEventListener('click',tmpMarker); // TEMP (also the M key)
-$('#shiftBtn').addEventListener('click',()=>{ if(clip) return; if(!started) start(); if(inTravel()){ travel.leave(); return; } toggleEra(); });
+// TEMP: straight to the station (rift-conv.js), skipping the Marker, the lift and the Backrooms
+function tmpConv(){ if(!ok3d||clip||inTravel()||travelLoading) return; if(!started) start(); if(panelOpen) closePanel(); if(markerOn) setMarker(false);
+  loadTravel(()=>{ travelling=true; travel.noclip('conv'); },()=>{}); }
+$('#tmpConv').addEventListener('click',tmpConv);
+$('#shiftBtn').addEventListener('click',()=>{ if(clip) return; if(!started) start(); if(inTravel()){ travel.shift(); return; } toggleEra(); });
 $('#sound').addEventListener('click',()=>{ soundOn=!soundOn; $('#sound').setAttribute('aria-pressed',String(soundOn)); $('#sound').textContent=soundOn?'Sound':'Muted';
   if(!ac) initAudio(); if(ac){ if(ac.state==='suspended') ac.resume(); master.gain.setTargetAtTime(soundOn?1:0,ac.currentTime,.05); } });
 

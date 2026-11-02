@@ -181,6 +181,8 @@ const sndB={
   on(){ const a=K.A(); if(!a) return; const t=a.ac.currentTime; for(let i=0;i<4;i++){ a.tone(t+i*.05,'square',2200,1600,.04,.001,.02); } a.noise(t+.2,.3,'bandpass',900,2,.08,.25); },
   step(d){ const a=K.A(); if(!a) return; const t=a.ac.currentTime, v=.8+Math.random()*.3; a.tone(t,'sine',70,40,.12*v,.006,.1,d); a.noise(t,.14,'lowpass',320,.7,.14*v,.1,d); }, // carpet, a little wet
   breaker(){ const a=K.A(); if(!a) return; const t=a.ac.currentTime; a.tone(t,'sine',90,30,.35,.004,.35); a.noise(t,.25,'lowpass',260,.8,.3,.2); a.tone(t,'square',2400,1700,.04,.001,.03); },
+  descend(){ const a=K.A(); if(!a) return; const t=a.ac.currentTime; a.tone(t,'sine',90,30,.3,.01,.5); a.tone(t+.2,'sawtooth',64,46,.07,.6,2.6); a.noise(t+.2,3,'lowpass',240,.7,.16,2.6);
+    a.tone(t+3.3,'triangle',659,659,.16,.004,1,K.pout(0,1)); a.tone(t+3.68,'triangle',523,523,.16,.004,1.3,K.pout(0,1)); },   // the ding again, a step lower
   ding(pan,v){ const a=K.A(); if(!a||v<.01) return; const d=K.pout(pan,v), t=a.ac.currentTime;
     a.tone(t,'triangle',1318,1318,.22,.004,1.1,d); a.tone(t,'sine',2636,2636,.03,.004,.5,d); a.tone(t+.38,'triangle',1046,1046,.22,.004,1.4,d); }
 };
@@ -242,7 +244,9 @@ function deadFrame(){ const k=reduce?1:sstep(0,.25,S.t); P.yaw=K.angLerp(EC.yaw0
   if(S.t>(reduce?.05:.6)&&!EC.blacked){ EC.blacked=true; W.fig.visible=false; S.fade=1; fadeTo(1,0,'#000'); humLevel(0,.02);
     title('','CAUGHT UP','You caught up with yourself.',true); }
   if(S.t>4.2){ untitle(); arrive(true); } }
-function escape(){ if(S.mode!=='back') return; S.mode='backOut'; S.backEscaped=true; sndB.ding(0,1); setTimeout(()=>K.leave(),350); }
+// the doors close on you and the lift goes down, further than any building has floors (rift-conv.js)
+function escape(){ if(S.mode!=='back') return; S.mode='backOut'; S.backEscaped=true; sndB.ding(0,1);
+  after(.5,()=>{ fadeTo(1,.5,'#000'); humLevel(0,.3); }); after(1.1,()=>{ humStop(); sndB.descend(); }); after(4.8,()=>K.go('conv')); }
 function enter(){ if(!W) build(); layout((Math.random()*2147483647)|0); // never the same place twice
   W.sc.add(cam); setPal(PAL_BACK); K.fallAudioStop();
   TP.x=cx(SPAWN.i)+.4; TP.z=cx(SPAWN.j)+.9; TP.acc=0; TP.bob=0; P.yaw=Math.PI*.25; P.pitch=-.05;

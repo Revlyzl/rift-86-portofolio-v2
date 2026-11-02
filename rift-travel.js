@@ -735,15 +735,21 @@ function begin(){ if(S.active) return; S.active=true; S.leaving=false; Q=[]; S.T
   startFall(); }
 // the other way in: through the shut lift in the corridor (index.html noclip). No fall, no choice: black, silence, then
 // the Backrooms (rift-back.js) take it from there. They are not a when, so they never show among the cracks.
-function noclip(){ if(S.active) return; S.active=true; S.leaving=false; Q=[]; S.T=0; S.glitch=0; S.mode=null;
+// to: TEMP testing shortcut straight into another era (index.html tmpConv)
+function noclip(to){ if(S.active) return; const k=to||'back'; S.active=true; S.leaving=false; Q=[]; S.T=0; S.glitch=0; S.mode=null;
   R.setTravelling(true); R.unlock(); document.body.classList.add('travel'); $('#shiftBtn').textContent='Leave backroom';
   fadeEl.style.transition='none'; fadeTo(1,0,'#000'); S.fade=1; fadeEl.style.opacity=1;
-  const go=()=>{ if(!S.active||S.leaving) return; S.era='back'; ERA_IMPL.back.arrive(); }; if(ERA_IMPL.back) go(); else loadEra('back',go); }
+  const go=()=>{ if(!S.active||S.leaving) return; S.era=k; ERA_IMPL[k].arrive(); }; if(ERA_IMPL[k]) go(); else loadEra(k,go); }
+// one era handing straight to another without going home (the Backrooms lift goes down, not up)
+function go(k){ if(!S.active||S.leaving) return; const im=impl(); if(im&&im.exit) im.exit(); S.mode=null; caption(''); untitle();
+  const run=()=>{ if(!S.active||S.leaving) return; S.era=k; ERA_IMPL[k].arrive(); }; if(ERA_IMPL[k]) run(); else loadEra(k,run); }
+// the HUD button: an era may take it over (the station shifts time with it); otherwise it takes you home
+function shiftBtn(){ const im=impl(); if(im&&im.shiftBtn) im.shiftBtn(); else leave(); }
 function leave(){ if(!S.active||S.leaving) return; S.leaving=true; skipEl.hidden=true; pickEls.forEach(b=>{ b.hidden=true; });
   caption(''); untitle(); objEl.classList.remove('on'); snd.whoosh(); S.glitch=1; fadeTo(1,.7,'#000');
   const from=S.era;
   after(.8,()=>{ const im=impl(); if(im&&im.exit) im.exit(); S.era=null; S.active=false; S.mode=null; Q=[]; msgT=0; msgEl.classList.remove('on'); objEl.classList.remove('on'); capEl.textContent=''; untitle(); fallAudioStop(); if(night) nightAudio(0); setPal(PAL_CORR); postMat.uniforms.glitch.value=0;
-    document.body.classList.remove('travel','twalk'); $('#year').classList.remove('past'); R.setTravelling(false); R.home(from==='back'?(S.backEscaped?'lift-echo':'lift'):undefined);
+    document.body.classList.remove('travel','twalk'); $('#year').classList.remove('past'); R.setTravelling(false); R.home(from==='back'?(S.backEscaped?'lift-echo':'lift'):from==='conv'?'lift-echo':undefined);
     fadeEl.style.transition='none'; fadeEl.style.opacity=1; requestAnimationFrame(()=>{ fadeEl.style.transition='opacity 1s steps(8)'; fadeEl.style.opacity=0; setTimeout(()=>{ fadeEl.style.transition='none'; },1100); }); }); }
 function key(k){
   if(S.mode==='fall'&&(k===' '||k==='enter'||k==='escape')) skip();
@@ -763,9 +769,9 @@ function frame(dt,inp){ if(!S.active) return; S.t+=dt; S.T+=dt;
   if(msgT>0){ msgT-=dt; if(msgT<=0) msgEl.classList.remove('on'); }
 }
 
-window.RiftTravel={begin,noclip,leave,key,click,frame,get active(){ return S.active; }};
+window.RiftTravel={begin,noclip,leave,shift:shiftBtn,key,click,frame,get active(){ return S.active; }};
 // the kit other eras (rift-<key>.js) build with: shared state, screen, audio and geometry helpers
 window.__RTK={R,S,P,reduce,cam,render,onScreen,setPal,toPal,fadeTo,after,caption,title,untitle,msg,objective,el,
   A,pout,swell,snd,panOf,vol,tex,px,disc,sky,rnd,rr,reseed:n=>{ seed=n; },clamp,lerp,sstep,angLerp,V,
-  put,flush,tbox,hang,part,grp,eyeTex,crack,shimmer,fallAudioStop,leave,register:(k,o)=>{ ERA_IMPL[k]=o; }};
+  put,flush,tbox,hang,part,grp,eyeTex,crack,shimmer,fallAudioStop,leave,go,register:(k,o)=>{ ERA_IMPL[k]=o; }};
 })();
