@@ -166,6 +166,12 @@ const PREV={
     for(const [x,y,r,c] of [[24,24,12,'#6e3720'],[15,25,7,'#b5622b'],[33,25,7,'#b5622b'],[24,21,9,'#f0a43c'],[24,22,5,'#fff3d0'],[18,19,4,'#f0a43c'],[30,19,4,'#f0a43c']]) disc(g,c,x,y,r);
     g.fillStyle='#2c1d16'; let x=0; while(x<w){ const bw=3+(rnd()*5|0), bh=6+(rnd()*14|0); g.fillRect(x,h-bh,bw,bh); x+=bw+1; } g.fillRect(0,h-5,w,5);
     g.strokeStyle='rgba(227,236,241,.8)'; g.lineWidth=1; for(let i=0;i<3;i++){ let cx=24,cy=40; g.beginPath(); g.moveTo(cx,cy); for(let k=0;k<5;k++){ cx+=rr(-8,8); cy+=rr(-9,9); g.lineTo(cx|0,cy|0); } g.stroke(); } }),
+  // above a floor of cloud at dusk: a four-engine airliner, small and far, and on its wing two red points that shouldn't be there
+  air:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#1d2630','#3a4a58','#7f98ad','#9ea198']); disc(g,'#d9d3bf',36,40,3);
+    g.fillStyle='#d9d3bf'; g.fillRect(0,56,w,h-56); for(let i=0;i<16;i++) disc(g,i%2?'#9ea198':'#e3ecf1',rnd()*w,54+rnd()*22,2+rnd()*4);
+    g.fillStyle='#0f141a'; g.fillRect(10,32,24,3); g.fillRect(32,29,2,4); g.fillRect(31,28,4,1); g.fillRect(8,33,2,1);   // fuselage, tail
+    g.fillRect(17,35,10,1); g.fillRect(14,36,16,1); g.fillRect(16,35,1,2); g.fillRect(27,35,1,2);                       // wing, engines
+    px(g,'#ff2a1a',22,34); px(g,'#ff2a1a',23,34); }),
   sea:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#7da597','#3b6862','#12262a']); for(let y=40;y<h;y+=4) for(let x=(y%8);x<w;x+=8) px(g,'#7da597',x,y,4,1); disc(g,'#fff3d0',12,16,4); }),
   ice:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#3a4a58','#7f98ad','#e3ecf1']); g.fillStyle='#e3ecf1'; g.beginPath(); g.moveTo(0,h); g.lineTo(8,46); g.lineTo(18,58); g.lineTo(30,38); g.lineTo(w,60); g.lineTo(w,h); g.fill(); }),
   sand:()=>tex(PW,PH,(g,w,h)=>{ sky(g,w,h,['#b5622b','#f0a43c','#fff3d0']); g.fillStyle='#6e3720'; g.beginPath(); g.moveTo(8,62); g.lineTo(24,38); g.lineTo(40,62); g.fill(); g.fillStyle='#b5622b'; g.fillRect(0,62,w,h); }),
@@ -209,7 +215,7 @@ function shimmer(c,t,amt){ for(const b of c.bits){ const j=Math.sin(t*7+b.ph)*.0
 const ERAS=[
   {key:'cret',date:'c. 130,000,000 BC',name:'Early Cretaceous',note:'Contains jump scares',edge:0xf0a43c},
   {key:'med',date:'c. AD 1350',name:'Middle Ages',note:'Contains flashing lights',edge:0x7da597},
-  {key:'atom',date:'AD 2030',name:'The last second',locked:true,edge:0xb5622b,sealed:'Sealed · the blast froze this one shut'},
+  {key:'air',date:'AD 1955',name:'Flight 914',note:'Contains flashing lights',edge:0x7f98ad},
   {key:'ship',date:'AD 2508',name:'Adrift',locked:true,secret:true,edge:0xff2a1a,tag:'Something is still aboard',sealed:'Sealed · make us whole'}
 ];
 const T_SLOW=reduce?0:7.2, DEC_T=1.8, V_MAX=24, SPIN=.22;
