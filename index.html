@@ -240,8 +240,10 @@ a.pbtn{display:inline-block;text-decoration:none;color:var(--ink)}
     <div class="year pbox" id="year">TIMELINE<b id="yearVal">20??</b></div>
     <button class="pbtn" id="shiftBtn" type="button" title="Shift time (T)">Shift time</button>
     <button class="pbtn" id="sound" type="button" aria-pressed="true">Sound</button>
+    <!-- TEMP: disabled for deployment
     <button class="pbtn" id="tmpMarker" type="button" title="TEMP: force the next glitch to be the 10th">Marker</button>
-    <button class="pbtn" id="tmpConv" type="button" title="TEMP: go straight to the station (Convergence)">Station</button> TEMP: remove before release
+    <button class="pbtn" id="tmpConv" type="button" title="TEMP: go straight to the station (Convergence)">Station</button>
+    -->
 
   </div>
 </header>
@@ -1041,7 +1043,7 @@ addEventListener('keydown',e=>{ if(e.target.closest&&e.target.closest('input,tex
   if(inTravel()){ if(!e.repeat) travel.key(k,e); if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault(); return; }
   if(k==='escape'){ if(!$('#lb').hidden) closeLb(); else closePanel(); }
   if(clip) return;
-  if(started && !e.repeat){ if(k==='t'){ toggleEra(); } if(k==='m') tmpMarker(); /* TEMP */ if(k==='f'){ flashOn=!flashOn; applyEra(era); sfx.ui(); } if(['1','2','3','4','5'].includes(k)) openPanel(['about','experience','skills','projects','contact'][+k-1]); if(k==='e'&&aimKey&&!panelOpen) act(aimKey); }
+  if(started && !e.repeat){ if(k==='t'){ toggleEra(); } /* if(k==='m') tmpMarker(); TEMP — disabled for deployment */ if(k==='f'){ flashOn=!flashOn; applyEra(era); sfx.ui(); } if(['1','2','3','4','5'].includes(k)) openPanel(['about','experience','skills','projects','contact'][+k-1]); if(k==='e'&&aimKey&&!panelOpen) act(aimKey); }
   if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault(); });
 addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
 addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; });
@@ -1158,11 +1160,11 @@ $('#copy').addEventListener('click',()=>{ const btn=$('#copy'), txt=$('#addr').t
   try{ navigator.clipboard.writeText(txt).then(done,fb); }catch(e){ fb(); } });
 // TEMP: remove before release. Fires an automatic glitch now; if the monolith is away, this one counts as the 10th.
 function tmpMarker(){ if(!started) start(); if(!markerOn) glimpseN=Math.ceil((glimpseN+1)/10)*10-1; nextGlimpse=0; if(panelOpen) closePanel(); }
-$('#tmpMarker').addEventListener('click',tmpMarker); // TEMP (also the M key)
+// $('#tmpMarker').addEventListener('click',tmpMarker); // TEMP (also the M key) — disabled for deployment
 // TEMP: straight to the station (rift-conv.js), skipping the Marker, the lift and the Backrooms
 function tmpConv(){ if(!ok3d||clip||inTravel()||travelLoading) return; if(!started) start(); if(panelOpen) closePanel(); if(markerOn) setMarker(false);
   loadTravel(()=>{ travelling=true; travel.noclip('conv'); },()=>{}); }
-$('#tmpConv').addEventListener('click',tmpConv);
+// $('#tmpConv').addEventListener('click',tmpConv); // TEMP — disabled for deployment
 $('#shiftBtn').addEventListener('click',()=>{ if(clip) return; if(!started) start(); if(inTravel()){ travel.shift(); return; } toggleEra(); });
 $('#sound').addEventListener('click',()=>{ soundOn=!soundOn; $('#sound').setAttribute('aria-pressed',String(soundOn)); $('#sound').textContent=soundOn?'Sound':'Muted';
   if(!ac) initAudio(); if(ac){ if(ac.state==='suspended') ac.resume(); master.gain.setTargetAtTime(soundOn?1:0,ac.currentTime,.05); } });
